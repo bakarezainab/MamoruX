@@ -1,0 +1,18 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Node.js dependencies & builds
+node_modules/
+dist/
+.pnpm-store/
+*.log
+
+# Environments & sensitive keys
+.env
+.env.local
+*.pem
+
+.next/
+
