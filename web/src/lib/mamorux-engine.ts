@@ -10,6 +10,7 @@ export interface UserIntent {
   amount: string;
   maxSlippageBps: number;
   note?: string;
+  createdAt?: string;
 }
 
 export interface Cross {
@@ -19,6 +20,14 @@ export interface Cross {
   amountA: number;
   amountB: number;
   notionalUsd: number;
+}
+
+export interface LiveQuoteInfo {
+  amountOutFormatted?: string;
+  amountOutUsd?: string;
+  timeEstimateSec?: number;
+  source: "1click-live" | "unavailable";
+  error?: string;
 }
 
 export interface PlannedLeg {
@@ -31,6 +40,7 @@ export interface PlannedLeg {
   notionalUsd: number;
   venue: "internal-cross" | "near-intents";
   rationale: string;
+  liveQuote?: LiveQuoteInfo;
 }
 
 export interface AgentReport {
@@ -39,16 +49,25 @@ export interface AgentReport {
   verdict: "Approve" | "Reject";
   riskScore: number;
   findings: string[];
-  mode: "near-ai-cloud" | "deterministic-enclave";
+  mode: "near-ai-cloud" | "local-policy-engine";
+  teeChatId?: string;
 }
 
-export const REFERENCE_PRICES: Record<string, number> = {
-  ETH: 2800,
-  SOL: 180,
-  NEAR: 5.5,
-  BTC: 89000,
-  USDC: 1.0,
-  USDT: 1.0,
+interface OneClickToken {
+  assetId: string;
+  decimals: number;
+  blockchain: string;
+  symbol: string;
+  price: number;
+}
+
+const ONECLICK_CHAIN: Record<Chain, string> = {
+  ethereum: "eth",
+  base: "base",
+  arbitrum: "arb",
+  bitcoin: "btc",
+  solana: "sol",
+  near: "near",
 };
 
 const round = (n: number, d = 6) => Math.round(n * 10 ** d) / 10 ** d;
@@ -58,10 +77,136 @@ export function sha256Hex(input: string): string {
   return createHash("sha256").update(input, "utf8").digest("hex");
 }
 
-export function runMamoruSwarm(intents: UserIntent[], prices = REFERENCE_PRICES) {
+function toBaseUnits(amount: string, decimals: number): string {
+  const [i, f = ""] = amount.split(".");
+  const frac = (f + "0".repeat(decimals)).slice(0, decimals);
+  return (BigInt(i || "0") * BigInt(10) ** BigInt(decimals) + BigInt(frac || "0")).toString();
+}
+
+export async function fetch1ClickTokens(): Promise<{ tokens: OneClickToken[]; live: boolean; error?: string }> {
+  const baseUrl = process.env.ONECLICK_BASE_URL || "https://1click.chaindefuser.com";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(`${baseUrl}/v0/tokens`, { signal: controller.signal, cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const tokens = (await res.json()) as OneClickToken[];
+    return { tokens, live: true };
+  } catch (e) {
+    return { tokens: [], live: false, error: (e as Error).message };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetch1ClickDryQuote(
+  origin: OneClickToken,
+  dest: OneClickToken,
+  amountDecimal: string,
+  slippageBps: number,
+  refundTo: string
+): Promise<LiveQuoteInfo> {
+  const baseUrl = process.env.ONECLICK_BASE_URL || "https://1click.chaindefuser.com";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(`${baseUrl}/v0/quote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        dry: true,
+        swapType: "EXACT_INPUT",
+        slippageTolerance: slippageBps,
+        originAsset: origin.assetId,
+        depositType: "ORIGIN_CHAIN",
+        destinationAsset: dest.assetId,
+        amount: toBaseUnits(amountDecimal, origin.decimals),
+        refundTo,
+        refundType: "ORIGIN_CHAIN",
+        recipient: refundTo,
+        recipientType: "DESTINATION_CHAIN",
+        deadline: new Date(Date.now() + 30 * 60_000).toISOString(),
+      }),
+    });
+    if (!res.ok) {
+      const txt = await res.text();
+      return { source: "unavailable", error: `1Click ${res.status}: ${txt.slice(0, 120)}` };
+    }
+    const data = await res.json();
+    return {
+      source: "1click-live",
+      amountOutFormatted: data.quote?.amountOutFormatted,
+      amountOutUsd: data.quote?.amountOutUsd,
+      timeEstimateSec: data.quote?.timeEstimate,
+    };
+  } catch (e) {
+    return { source: "unavailable", error: (e as Error).message };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function callNearAiIfConfigured(
+  systemPrompt: string,
+  userPayload: unknown
+): Promise<{ content: string; chatId: string } | null> {
+  const apiKey = process.env.NEAR_AI_API_KEY;
+  if (!apiKey) return null;
+  const baseUrl = process.env.NEAR_AI_BASE_URL || "https://cloud-api.near.ai/v1";
+  const model = process.env.NEAR_AI_MODEL || "deepseek-ai/DeepSeek-V3.1";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: JSON.stringify(userPayload) },
+        ],
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return {
+      content: json.choices?.[0]?.message?.content || "",
+      chatId: json.id || "",
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function runMamoruSwarm(intents: UserIntent[]) {
+  const tokenFeed = await fetch1ClickTokens();
+  const findTok = (chain: Chain, sym: string) =>
+    tokenFeed.tokens.find(
+      (t) => t.blockchain === ONECLICK_CHAIN[chain] && t.symbol.toUpperCase() === sym.toUpperCase()
+    );
+
+  const priceMap: Record<string, number> = {};
+  for (const intent of intents) {
+    for (const side of [intent.sell, intent.buy]) {
+      const tok =
+        findTok(side.chain, side.symbol) ||
+        tokenFeed.tokens.find((t) => t.symbol.toUpperCase() === side.symbol.toUpperCase() && t.price > 0);
+      if (tok && tok.price > 0) {
+        priceMap[side.symbol.toUpperCase()] = tok.price;
+      }
+    }
+  }
+
   const book = intents.map((intent) => {
     const amount = Number(intent.amount);
-    const px = prices[intent.sell.symbol.toUpperCase()] ?? 1;
+    const px = priceMap[intent.sell.symbol.toUpperCase()] ?? 0;
     return { intent, amount, usd: amount * px };
   });
 
@@ -76,8 +221,9 @@ export function runMamoruSwarm(intents: UserIntent[], prices = REFERENCE_PRICES)
       if (key(a.intent.sell) !== key(b.intent.buy) || key(a.intent.buy) !== key(b.intent.sell)) continue;
 
       const usd = Math.min(a.usd, b.usd);
-      const pa = prices[a.intent.sell.symbol.toUpperCase()] ?? 1;
-      const pb = prices[b.intent.sell.symbol.toUpperCase()] ?? 1;
+      const pa = priceMap[a.intent.sell.symbol.toUpperCase()] || 0;
+      const pb = priceMap[b.intent.sell.symbol.toUpperCase()] || 0;
+      if (pa <= 0 || pb <= 0) continue;
 
       crosses.push({
         a: a.intent.id,
@@ -96,7 +242,7 @@ export function runMamoruSwarm(intents: UserIntent[], prices = REFERENCE_PRICES)
   }
 
   const residuals = book
-    .filter((b) => b.usd > 0.01)
+    .filter((b) => b.amount > 1e-8)
     .map((b) => ({ intent: b.intent, amount: round(b.amount), notionalUsd: round(b.usd, 2) }));
 
   const matchedUsd = crosses.reduce((s, c) => s + c.notionalUsd * 2, 0);
@@ -134,34 +280,56 @@ export function runMamoruSwarm(intents: UserIntent[], prices = REFERENCE_PRICES)
   }
 
   for (const r of residuals) {
-    const chunks = Math.max(1, Math.ceil(r.notionalUsd / chunkUsd));
+    const chunks = Math.max(1, Math.ceil((r.notionalUsd || 1) / chunkUsd));
+    const originTok = findTok(r.intent.sell.chain, r.intent.sell.symbol);
+    const destTok = findTok(r.intent.buy.chain, r.intent.buy.symbol);
+
     for (let k = 0; k < chunks; k++) {
+      const chunkAmount = round(r.amount / chunks);
+      let liveQuote: LiveQuoteInfo | undefined;
+      if (originTok && destTok && chunkAmount > 0) {
+        liveQuote = await fetch1ClickDryQuote(
+          originTok,
+          destTok,
+          String(chunkAmount),
+          r.intent.maxSlippageBps,
+          r.intent.owner
+        );
+      }
       legs.push({
         intentId: r.intent.id,
         chain: r.intent.sell.chain,
         kind: "Intent",
         sell: r.intent.sell,
         buy: r.intent.buy,
-        amount: round(r.amount / chunks),
+        amount: chunkAmount,
         notionalUsd: round(r.notionalUsd / chunks, 2),
         venue: "near-intents",
         rationale: `Residual ${k + 1}/${chunks} routed to NEAR Intents (1Click Solver Bus)`,
+        liveQuote,
       });
     }
   }
 
-  // Strategist report
+  // Strategist (calls NEAR AI Cloud if NEAR_AI_API_KEY is set)
+  const aiStrategist = await callNearAiIfConfigured(
+    `You are the Strategist Agent for MamoruX. Summarize routing in JSON: {"notes": "..."}`,
+    { intents, prices: priceMap, crosses: crosses.length, residualLegs: legs.filter((l) => l.venue === "near-intents").length }
+  );
+
   const strategist: AgentReport = {
     agent: "strategist",
-    model: "deepseek-ai/DeepSeek-V3.1 (TEE)",
+    model: aiStrategist ? (process.env.NEAR_AI_MODEL || "deepseek-ai/DeepSeek-V3.1") : "MamoruX Routing Engine",
     verdict: "Approve",
     riskScore: 5,
     findings: [
+      `Market oracle feed: ${tokenFeed.live ? "Live 1Click API (" + Object.keys(priceMap).length + " assets priced)" : "1Click feed unreachable (" + tokenFeed.error + ")"}`,
       `Total batch notional: $${totalNotionalUsd.toLocaleString()}`,
       `Internal dark-pool netting: ${(internalizationRate * 100).toFixed(1)}% (${crosses.length} P2P cross${crosses.length === 1 ? "" : "es"})`,
       `NEAR Intents residual legs: ${legs.filter((l) => l.venue === "near-intents").length}`,
     ],
-    mode: "deterministic-enclave",
+    mode: aiStrategist ? "near-ai-cloud" : "local-policy-engine",
+    teeChatId: aiStrategist?.chatId,
   };
 
   // Sentinel firewall audit
@@ -189,13 +357,14 @@ export function runMamoruSwarm(intents: UserIntent[], prices = REFERENCE_PRICES)
     sentinelFindings.push("Prompt-injection scan clean; target chains on allowlist; slippage within <= 300 bps policy");
   }
   riskScore = Math.min(100, riskScore);
+
   const sentinel: AgentReport = {
     agent: "sentinel",
-    model: "MamoruX Sentinel Firewall (TEE)",
+    model: "MamoruX Sentinel Firewall",
     verdict: riskScore <= 60 ? "Approve" : "Reject",
     riskScore,
     findings: sentinelFindings,
-    mode: "deterministic-enclave",
+    mode: "local-policy-engine",
   };
 
   // Matcher conservation audit
@@ -214,9 +383,9 @@ export function runMamoruSwarm(intents: UserIntent[], prices = REFERENCE_PRICES)
     riskScore: matcherIssues.length === 0 ? 5 : 95,
     findings:
       matcherIssues.length === 0
-        ? [`Conservation invariant 100% verified ($${totalNotionalUsd.toLocaleString()} input == output)`]
+        ? [`Conservation invariant 100% verified across ${intents.length} intent(s)`]
         : matcherIssues,
-    mode: "deterministic-enclave",
+    mode: "local-policy-engine",
   };
 
   const plan = { intents, legs, internalCrosses: crosses };
@@ -226,6 +395,8 @@ export function runMamoruSwarm(intents: UserIntent[], prices = REFERENCE_PRICES)
   return {
     approved,
     planHash,
+    prices: priceMap,
+    priceFeedLive: tokenFeed.live,
     totalNotionalUsd,
     internalizationRate,
     crosses,

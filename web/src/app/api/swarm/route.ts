@@ -1,48 +1,54 @@
 import { NextResponse } from "next/server";
 import { runMamoruSwarm, type Chain, type UserIntent } from "@/lib/mamorux-engine";
 
+// Real in-memory dark-pool orderbook for live multi-user / multi-wallet demos
+let darkPoolBook: UserIntent[] = [];
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const owner = String(body.owner || "treasury-alpha.near").trim();
+
+    if (body.action === "clear_pool") {
+      darkPoolBook = [];
+      return NextResponse.json({ pool: darkPoolBook, cleared: true });
+    }
+
+    const owner = String(body.owner || "").trim();
+    if (!owner) {
+      return NextResponse.json({ error: "Please connect or enter a NEAR wallet address first." }, { status: 400 });
+    }
+
     const sellChain = (body.sellChain || "ethereum") as Chain;
     const buyChain = (body.buyChain || "solana") as Chain;
     const sellSymbol = String(body.sellAsset || "ETH").toUpperCase();
     const buySymbol = String(body.buyAsset || "SOL").toUpperCase();
-    const amount = String(body.amount || "2.5");
+    const amount = String(body.amount || "0");
     const maxSlippageBps = Number(body.maxSlippageBps ?? 40);
     const note = body.note ? String(body.note) : undefined;
-    const includeCounterparty = body.includeCounterparty !== false;
 
-    const primaryIntent: UserIntent = {
-      id: "intent-user",
+    const intent: UserIntent = {
+      id: `intent-${Date.now().toString(36)}`,
       owner,
       sell: { chain: sellChain, symbol: sellSymbol },
       buy: { chain: buyChain, symbol: buySymbol },
       amount,
       maxSlippageBps,
       note,
+      createdAt: new Date().toISOString(),
     };
 
-    const intents: UserIntent[] = [primaryIntent];
-
-    if (includeCounterparty && sellChain !== buyChain) {
-      // Simulated dark-pool counterparty order for opposite side to demonstrate live P2P netting
-      intents.push({
-        id: "intent-counterparty",
-        owner: owner.endsWith(".testnet") ? "fund-beta.testnet" : "fund-beta.near",
-        sell: { chain: buyChain, symbol: buySymbol },
-        buy: { chain: sellChain, symbol: sellSymbol },
-        amount: buySymbol === "SOL" ? "25.0" : buySymbol === "ETH" ? "1.5" : buySymbol === "BTC" ? "0.05" : "2500",
-        maxSlippageBps: 35,
-        note: "Counterparty institutional dark-pool liquidity",
-      });
+    if (body.action === "add_to_pool") {
+      darkPoolBook.push(intent);
+      return NextResponse.json({ pool: darkPoolBook, added: intent });
     }
 
-    const result = runMamoruSwarm(intents);
+    const batch = [...darkPoolBook, intent];
+    const result = await runMamoruSwarm(batch);
 
     return NextResponse.json({
       ...result,
+      poolCount: darkPoolBook.length,
+      batchCount: batch.length,
       timestamp: new Date().toISOString(),
       derivationPaths: {
         ethereum: `mamorux/${owner}/ethereum`,
@@ -51,10 +57,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: (err as Error).message || "Invalid swarm request" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: (err as Error).message || "Invalid swarm request" }, { status: 400 });
   }
 }
 
@@ -63,6 +66,7 @@ export async function GET() {
     service: "MamoruX Multi-Agent Swarm API",
     teeModel: process.env.NEAR_AI_MODEL || "deepseek-ai/DeepSeek-V3.1",
     nearAiConfigured: Boolean(process.env.NEAR_AI_API_KEY),
+    pool: darkPoolBook,
     mpcSigner: {
       mainnet: "v1.signer",
       testnet: "v1.signer-prod.testnet",
