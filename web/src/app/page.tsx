@@ -25,7 +25,10 @@ import {
   ExternalLink,
   Plus,
   Trash2,
+  PenTool,
+  Send,
 } from "lucide-react";
+import { useNearWallet } from "@/components/NearWalletProvider";
 
 type TabId = "overview" | "app" | "how-it-works" | "models" | "submit";
 
@@ -92,12 +95,21 @@ interface WalletInfo {
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const {
+    network,
+    setNetwork,
+    connectedAccountId,
+    walletName,
+    openConnectModal,
+    disconnectWallet,
+    signIntentMessage,
+    sendFunctionCall,
+  } = useNearWallet();
 
-  // Wallet State (no hardcoded fake account)
+  // Wallet State (pre-configured for idealz.near on mainnet, or connected via Wallet Selector)
   const [walletOpen, setWalletOpen] = useState(false);
-  const [network, setNetwork] = useState<"mainnet" | "testnet">("mainnet");
-  const [walletInput, setWalletInput] = useState("");
-  const [activeAccount, setActiveAccount] = useState("");
+  const [walletInput, setWalletInput] = useState("idealz.near");
+  const [activeAccount, setActiveAccount] = useState("idealz.near");
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
@@ -108,6 +120,13 @@ export default function Home() {
     note: string;
   } | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Real NEAR Signing & Transaction State
+  const [nearSig, setNearSig] = useState<{ accountId: string; publicKey: string; signature: string } | null>(null);
+  const [nearTx, setNearTx] = useState<{ txHash: string; explorerUrl: string } | null>(null);
+  const [nearActionLoading, setNearActionLoading] = useState(false);
+  const [nearActionError, setNearActionError] = useState<string | null>(null);
+  const [vaultContractInput, setVaultContractInput] = useState("mamorux-vault.near");
 
   // Dark-Pool Intent State
   const [sellAsset, setSellAsset] = useState("ETH");
@@ -140,7 +159,63 @@ export default function Home() {
 
   useEffect(() => {
     loadPool();
+    inspectWallet("idealz.near", "mainnet");
   }, []);
+
+  useEffect(() => {
+    if (connectedAccountId) {
+      setWalletInput(connectedAccountId);
+      setActiveAccount(connectedAccountId);
+      inspectWallet(connectedAccountId, network);
+    }
+  }, [connectedAccountId, network]);
+
+  useEffect(() => {
+    setVaultContractInput(network === "mainnet" ? "mamorux-vault.near" : "mamorux-vault.testnet");
+  }, [network]);
+
+  const handleSignNearIntent = async () => {
+    if (!swarmResult) return;
+    setNearActionLoading(true);
+    setNearActionError(null);
+    setNearSig(null);
+    try {
+      const msg = `MamoruX Intent Authorization\nAccount: ${activeAccount}\nPlanHash: ${swarmResult.planHash}\nSell: ${amount} ${sellAsset} (${sellChain})\nBuy: ${buyAsset} (${buyChain})\nSlippage: ${slippageBps} bps`;
+      const res = await signIntentMessage(msg);
+      setNearSig(res);
+    } catch (e) {
+      setNearActionError((e as Error).message);
+    } finally {
+      setNearActionLoading(false);
+    }
+  };
+
+  const handleSendOnChainTx = async () => {
+    if (!swarmResult) return;
+    setNearActionLoading(true);
+    setNearActionError(null);
+    setNearTx(null);
+    try {
+      const res = await sendFunctionCall({
+        receiverId: vaultContractInput.trim(),
+        methodName: "submit_intent",
+        args: {
+          plan_hash: swarmResult.planHash,
+          sell_asset: `${sellChain}:${sellAsset}`,
+          buy_asset: `${buyChain}:${buyAsset}`,
+          amount,
+          max_slippage_bps: Number(slippageBps),
+        },
+        gas: "30000000000000",
+        depositYocto: "0",
+      });
+      setNearTx(res);
+    } catch (e) {
+      setNearActionError((e as Error).message);
+    } finally {
+      setNearActionLoading(false);
+    }
+  };
 
   const inspectWallet = async (accId = walletInput, net = network) => {
     const clean = accId.trim().toLowerCase();
@@ -270,15 +345,27 @@ export default function Home() {
 
           <div className="flex items-center space-x-2.5">
             <button
-              onClick={() => setWalletOpen(true)}
+              onClick={() => (connectedAccountId ? setWalletOpen(true) : openConnectModal())}
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl border text-xs font-mono transition-all ${
-                activeAccount
-                  ? "bg-[#171717] border-[#00EC97]/50 text-white"
-                  : "bg-[#00EC97]/10 border-[#00EC97] text-[#00EC97] font-bold"
+                connectedAccountId
+                  ? "bg-[#00EC97]/15 border-[#00EC97] text-[#00EC97] font-bold"
+                  : "bg-[#171717] border-[#00EC97]/50 text-white hover:border-[#00EC97]"
               }`}
             >
               <Wallet className="w-3.5 h-3.5 text-[#00EC97]" />
-              <span>{activeAccount ? shortAddr(activeAccount) : "Connect / Get NEAR Wallet"}</span>
+              <span>
+                {connectedAccountId
+                  ? `${shortAddr(connectedAccountId)} (${walletName || "Connected"})`
+                  : `Connect Wallet (${activeAccount ? shortAddr(activeAccount) : "NEAR"})`}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setWalletOpen(true)}
+              title="Inspect NEAR Wallet & MPC Keys"
+              className="hidden sm:flex items-center px-3 py-2 rounded-xl bg-[#171717] hover:bg-[#222222] border border-[#262626] text-xs font-mono text-neutral-300 transition"
+            >
+              Inspector
             </button>
 
             <button
@@ -791,6 +878,90 @@ export default function Home() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Real NEAR Wallet Signing & On-Chain Settlement */}
+                  {swarmResult.approved && (
+                    <div className="near-card rounded-2xl p-5 space-y-4 border border-[#00EC97]/30">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center space-x-2">
+                            <Fingerprint className="w-4 h-4 text-[#00EC97]" />
+                            <span>NEAR Wallet Authorization &amp; On-Chain Settlement</span>
+                          </h3>
+                          <p className="text-[11px] text-neutral-400 mt-0.5">
+                            Sign the compiled <span className="font-mono text-neutral-200">plan_hash</span> via NEP-413 (0 gas) or broadcast a NEAR transaction.
+                          </p>
+                        </div>
+                        {!connectedAccountId && (
+                          <button
+                            onClick={openConnectModal}
+                            className="px-3 py-1.5 rounded-lg bg-[#00EC97] text-black text-xs font-bold hover:bg-[#17D9D4] transition"
+                          >
+                            Connect NEAR Wallet
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <button
+                          onClick={handleSignNearIntent}
+                          disabled={nearActionLoading}
+                          className="py-2.5 px-4 rounded-xl bg-[#00EC97] hover:bg-[#17D9D4] text-black font-bold text-xs transition flex items-center justify-center space-x-2 disabled:opacity-50"
+                        >
+                          <PenTool className="w-3.5 h-3.5" />
+                          <span>Sign Intent Plan (NEP-413 • 0 Gas)</span>
+                        </button>
+
+                        <button
+                          onClick={handleSendOnChainTx}
+                          disabled={nearActionLoading}
+                          className="py-2.5 px-4 rounded-xl bg-[#171717] hover:bg-[#222222] border border-[#00EC97]/40 text-white font-bold text-xs transition flex items-center justify-center space-x-2 disabled:opacity-50"
+                        >
+                          <Send className="w-3.5 h-3.5 text-[#00EC97]" />
+                          <span>Submit On-Chain Tx</span>
+                        </button>
+                      </div>
+
+                      <div className="flex items-center space-x-2 text-[11px] font-mono">
+                        <span className="text-neutral-500 shrink-0">Vault Contract:</span>
+                        <input
+                          type="text"
+                          value={vaultContractInput}
+                          onChange={(e) => setVaultContractInput(e.target.value)}
+                          className="flex-1 bg-[#111111] border border-[#262626] rounded-lg px-2.5 py-1 text-neutral-200 outline-none focus:border-[#00EC97]"
+                        />
+                      </div>
+
+                      {nearActionError && <p className="text-xs font-mono text-red-400">{nearActionError}</p>}
+
+                      {nearSig && (
+                        <div className="p-3 rounded-xl bg-[#00EC97]/10 border border-[#00EC97]/30 text-[11px] font-mono space-y-1">
+                          <div className="text-[#00EC97] font-bold">✓ NEP-413 Cryptographic Signature Verified</div>
+                          <div className="text-neutral-300 truncate">Signer: {nearSig.accountId}</div>
+                          <div className="text-neutral-400 truncate">PublicKey: {nearSig.publicKey}</div>
+                          <div className="text-neutral-400 truncate">Signature: {nearSig.signature}</div>
+                        </div>
+                      )}
+
+                      {nearTx && (
+                        <div className="p-3 rounded-xl bg-[#17D9D4]/10 border border-[#17D9D4]/30 text-[11px] font-mono flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="text-[#17D9D4] font-bold">✓ NEAR Transaction Broadcast</div>
+                            <div className="text-neutral-300 truncate">Hash: {nearTx.txHash}</div>
+                          </div>
+                          <a
+                            href={nearTx.explorerUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[#00EC97] hover:underline flex items-center space-x-1 shrink-0"
+                          >
+                            <span>NearBlocks</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -994,6 +1165,36 @@ export default function Home() {
               <button onClick={() => setWalletOpen(false)} className="text-neutral-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              {connectedAccountId ? (
+                <div className="w-full p-3 rounded-xl bg-[#00EC97]/10 border border-[#00EC97]/40 flex items-center justify-between text-xs font-mono">
+                  <div>
+                    <div className="text-[#00EC97] font-bold">
+                      Connected via {walletName || "NEAR Wallet"}
+                    </div>
+                    <div className="text-white">{connectedAccountId}</div>
+                  </div>
+                  <button
+                    onClick={disconnectWallet}
+                    className="px-3 py-1.5 rounded-lg bg-[#1C1C1C] hover:bg-red-500/20 text-neutral-300 hover:text-red-400 border border-[#2E2E2E] transition"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setWalletOpen(false);
+                    openConnectModal();
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-[#00EC97] hover:bg-[#17D9D4] text-black font-bold text-xs transition flex items-center justify-center space-x-2"
+                >
+                  <Wallet className="w-4 h-4" />
+                  <span>Connect Browser Wallet (Meteor / MyNearWallet / HERE)</span>
+                </button>
+              )}
             </div>
 
             <div className="flex items-center space-x-2 text-xs font-mono">

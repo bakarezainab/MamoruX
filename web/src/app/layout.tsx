@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { NearWalletProvider } from "@/components/NearWalletProvider";
 
 export const metadata: Metadata = {
   title: "MamoruX — Confidential AI Dark-Pool & Policy Firewall on NEAR",
@@ -15,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased min-h-screen bg-[#0A0A0A] text-white selection:bg-[#00EC97] selection:text-black">
-        {children}
+        <NearWalletProvider>{children}</NearWalletProvider>
       </body>
     </html>
   );
