@@ -46,6 +46,7 @@ export async function POST(req: Request) {
     const result = await runMamoruSwarm(batch, {
       nearAiApiKey: body.nearAiApiKey ? String(body.nearAiApiKey) : undefined,
       nearAiModel: body.nearAiModel ? String(body.nearAiModel) : undefined,
+      policy: body.policy && typeof body.policy === "object" ? body.policy : undefined,
     });
 
     return NextResponse.json({

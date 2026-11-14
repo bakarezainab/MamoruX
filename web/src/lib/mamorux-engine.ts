@@ -188,9 +188,20 @@ async function callNearAiIfConfigured(
   }
 }
 
+export interface SwarmOptions {
+  nearAiApiKey?: string;
+  nearAiModel?: string;
+  policy?: {
+    maxSlippageLimitBps?: number;
+    maxPlanNotionalCapUsd?: number;
+    blockedKeywords?: string[];
+    strictTeeRequired?: boolean;
+  };
+}
+
 export async function runMamoruSwarm(
   intents: UserIntent[],
-  options?: { nearAiApiKey?: string; nearAiModel?: string }
+  options?: SwarmOptions
 ) {
   const tokenFeed = await fetch1ClickTokens();
   const findTok = (chain: Chain, sym: string) =>
@@ -352,15 +363,30 @@ export async function runMamoruSwarm(
   };
 
   // Sentinel firewall audit
+  const maxSlippageLimit = options?.policy?.maxSlippageLimitBps ?? 300;
+  const maxNotionalCap = options?.policy?.maxPlanNotionalCapUsd ?? 1_000_000;
+  const blockedWords = options?.policy?.blockedKeywords ?? [
+    "drain",
+    "exploit",
+    "bypass",
+    "reentrancy",
+    "hack",
+    "steal",
+    "emergency",
+    "override",
+  ];
+  const keywordRegex = new RegExp(`(${blockedWords.join("|")})`, "i");
+
   const sentinelFindings: string[] = [];
   let riskScore = 10;
   for (const intent of intents) {
-    if (intent.maxSlippageBps > 300) {
-      sentinelFindings.push(`High slippage tolerance (${intent.maxSlippageBps} bps > 300 bps policy limit) on ${intent.id}`);
+    if (intent.maxSlippageBps > maxSlippageLimit) {
+      sentinelFindings.push(`High slippage tolerance (${intent.maxSlippageBps} bps > ${maxSlippageLimit} bps policy limit) on ${intent.id}`);
       riskScore += 35;
     }
-    if (intent.note && /(drain|exploit|bypass|reentrancy|hack|steal|emergency|override)/i.test(intent.note)) {
-      sentinelFindings.push(`Adversarial prompt-injection / exploit signature detected in note: "${intent.note.slice(0, 80)}"`);
+    if (intent.note && keywordRegex.test(intent.note)) {
+      const matched = intent.note.match(keywordRegex)?.[0] || "exploit";
+      sentinelFindings.push(`Adversarial pattern / keyword "${matched}" detected in intent note: "${intent.note.slice(0, 80)}"`);
       riskScore += 55;
     }
     if (Number(intent.amount) <= 0 || Number.isNaN(Number(intent.amount))) {
@@ -368,12 +394,12 @@ export async function runMamoruSwarm(
       riskScore += 60;
     }
   }
-  if (totalNotionalUsd > 1_000_000) {
-    sentinelFindings.push(`Notional $${totalNotionalUsd.toLocaleString()} exceeds $1,000,000 MamoruVault single-plan cap`);
+  if (totalNotionalUsd > maxNotionalCap) {
+    sentinelFindings.push(`Notional $${totalNotionalUsd.toLocaleString()} exceeds $${maxNotionalCap.toLocaleString()} policy cap`);
     riskScore += 55;
   }
   if (sentinelFindings.length === 0) {
-    sentinelFindings.push("Prompt-injection scan clean; target chains on allowlist; slippage within <= 300 bps policy");
+    sentinelFindings.push(`Policy scan clean: slippage <= ${maxSlippageLimit} bps, notional <= $${maxNotionalCap.toLocaleString()}, 0 adversarial patterns`);
   }
   // Optional NEAR AI Cloud Sentinel Security Audit
   const aiSentinel = await callNearAiIfConfigured(

@@ -39,6 +39,55 @@ function solanaAddressFromNearKey(pk: string): string {
   return data;
 }
 
+async function getEthBalance(address: string): Promise<string> {
+  try {
+    const res = await fetch("https://ethereum-rpc.publicnode.com", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", method: "eth_getBalance", params: [address, "latest"], id: 1 }),
+      signal: AbortSignal.timeout(4500),
+    });
+    const data = await res.json();
+    if (data.result) {
+      const wei = BigInt(data.result);
+      const ethWhole = wei / BigInt(10 ** 18);
+      const ethFrac = ((wei % BigInt(10 ** 18)) / BigInt(10 ** 14)).toString().padStart(4, "0");
+      return `${ethWhole}.${ethFrac}`;
+    }
+  } catch {}
+  return "0.0000";
+}
+
+async function getSolBalance(address: string): Promise<string> {
+  try {
+    const res = await fetch("https://api.mainnet-beta.solana.com", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getBalance", params: [address] }),
+      signal: AbortSignal.timeout(4500),
+    });
+    const data = await res.json();
+    if (data.result && typeof data.result.value === "number") {
+      return (data.result.value / 1e9).toFixed(4);
+    }
+  } catch {}
+  return "0.0000";
+}
+
+async function getBtcBalance(address: string): Promise<string> {
+  try {
+    const res = await fetch(`https://mempool.space/api/address/${encodeURIComponent(address)}`, {
+      signal: AbortSignal.timeout(4500),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const sats = (data.chain_stats?.funded_txo_sum || 0) - (data.chain_stats?.spent_txo_sum || 0);
+      return (Math.max(0, sats) / 1e8).toFixed(6);
+    }
+  } catch {}
+  return "0.000000";
+}
+
 async function rpcCall(rpcUrl: string, params: Record<string, unknown>) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
@@ -128,9 +177,9 @@ export async function GET(req: Request) {
   let mpcDerived = false;
   let mpcError: string | null = null;
   let derivedAccounts: {
-    ethereum: { path: string; publicKey?: string; address: string };
-    solana: { path: string; publicKey?: string; address: string };
-    bitcoin: { path: string; publicKey?: string; address: string };
+    ethereum: { path: string; publicKey?: string; address: string; balance: string; symbol: string };
+    solana: { path: string; publicKey?: string; address: string; balance: string; symbol: string };
+    bitcoin: { path: string; publicKey?: string; address: string; balance: string; symbol: string };
   } | null = null;
 
   if (rpcReachable) {
@@ -140,21 +189,38 @@ export async function GET(req: Request) {
         mpcDerivedPublicKey(rpcUrl, mpcContract, vaultContract, solPath, 1),
         mpcDerivedPublicKey(rpcUrl, mpcContract, vaultContract, btcPath, 0),
       ]);
+
+      const ethAddr = ethAddressFromUncompressed(parseNearSecp256k1(ethPk));
+      const solAddr = solanaAddressFromNearKey(solPk);
+      const btcAddr = btcP2wpkhFromUncompressed(parseNearSecp256k1(btcPk), network);
+
+      const [ethBal, solBal, btcBal] = await Promise.all([
+        getEthBalance(ethAddr),
+        getSolBalance(solAddr),
+        getBtcBalance(btcAddr),
+      ]);
+
       derivedAccounts = {
         ethereum: {
           path: ethPath,
           publicKey: ethPk,
-          address: ethAddressFromUncompressed(parseNearSecp256k1(ethPk)),
+          address: ethAddr,
+          balance: ethBal,
+          symbol: "ETH",
         },
         solana: {
           path: solPath,
           publicKey: solPk,
-          address: solanaAddressFromNearKey(solPk),
+          address: solAddr,
+          balance: solBal,
+          symbol: "SOL",
         },
         bitcoin: {
           path: btcPath,
           publicKey: btcPk,
-          address: btcP2wpkhFromUncompressed(parseNearSecp256k1(btcPk), network),
+          address: btcAddr,
+          balance: btcBal,
+          symbol: "BTC",
         },
       };
       mpcDerived = true;
@@ -164,6 +230,13 @@ export async function GET(req: Request) {
   } else {
     mpcError = "Cannot derive live MPC addresses while NEAR RPC is unreachable.";
   }
+
+  const portfolio = {
+    near: { balance: balanceNear, symbol: "NEAR", network },
+    ethereum: derivedAccounts ? { balance: derivedAccounts.ethereum.balance, symbol: "ETH", address: derivedAccounts.ethereum.address } : null,
+    solana: derivedAccounts ? { balance: derivedAccounts.solana.balance, symbol: "SOL", address: derivedAccounts.solana.address } : null,
+    bitcoin: derivedAccounts ? { balance: derivedAccounts.bitcoin.balance, symbol: "BTC", address: derivedAccounts.bitcoin.address } : null,
+  };
 
   return NextResponse.json({
     accountId,
@@ -179,6 +252,7 @@ export async function GET(req: Request) {
     mpcDerived,
     mpcError,
     derivedAccounts,
+    portfolio,
   });
 }
 
