@@ -104,10 +104,10 @@ export default function Home() {
     sendFunctionCall,
   } = useNearWallet();
 
-  // Wallet State (pre-configured for idealz.near on mainnet, or connected via Wallet Selector)
+  // Wallet State (global — works for any connected or inspected NEAR wallet)
   const [walletOpen, setWalletOpen] = useState(false);
-  const [walletInput, setWalletInput] = useState("idealz.near");
-  const [activeAccount, setActiveAccount] = useState("idealz.near");
+  const [walletInput, setWalletInput] = useState("");
+  const [activeAccount, setActiveAccount] = useState("");
   const [walletInfo, setWalletInfo] = useState<WalletInfo | null>(null);
   const [walletLoading, setWalletLoading] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
@@ -234,7 +234,6 @@ export default function Home() {
     if (saved) applyTheme(saved);
     loadPool();
     loadNearAi();
-    inspectWallet("idealz.near", "mainnet");
   }, []);
 
   useEffect(() => {
@@ -390,7 +389,7 @@ export default function Home() {
               { href: "#how-it-works", label: "How It Works" },
               { href: "#live-app", label: "Live Dark-Pool" },
               { href: "#ai-security", label: "AI & Security" },
-              { href: "#submit", label: "Use Cases & Submit" },
+              { href: "#use-cases", label: "Use Cases" },
             ].map((item) => (
               <a
                 key={item.href}
@@ -502,7 +501,7 @@ export default function Home() {
                 {[
                   { label: "P2P Dark-Pool", value: "0% MEV" },
                   { label: "NEAR AI Cloud", value: `${nearAiModels.length || "20+"} Models` },
-                  { label: "Active Account", value: shortAddr(activeAccount) },
+                  { label: "Wallet Status", value: activeAccount ? shortAddr(activeAccount) : "Connect NEAR" },
                 ].map((stat, idx) => (
                   <div key={idx} className="near-card px-4 py-3 rounded-xl">
                     <div className="text-[11px] font-mono text-neutral-400">{stat.label}</div>
@@ -523,9 +522,9 @@ export default function Home() {
                 <div className="mt-3 px-3 py-2 rounded-xl bg-[#0D0D0D]/90 border border-[#262626] flex items-center justify-between text-xs font-mono">
                   <span className="text-neutral-400 flex items-center space-x-2">
                     <span className="w-2 h-2 rounded-full bg-[#00EC97] animate-pulse" />
-                    <span>Mainnet RPC: {walletInfo?.rpcReachable ? "Live" : "Checking..."}</span>
+                    <span>NEAR {network.toUpperCase()}</span>
                   </span>
-                  <span className="text-[#00EC97] font-bold">{activeAccount}</span>
+                  <span className="theme-text font-bold">{activeAccount || "No Wallet Connected"}</span>
                 </div>
               </div>
             </div>
@@ -603,7 +602,10 @@ export default function Home() {
               <h2 className="text-3xl font-black text-white mt-1">Live Dark-Pool &amp; NEAR Swarm</h2>
             </div>
             <div className="text-xs font-mono text-neutral-400">
-              Connected Account: <span className="text-[#00EC97] font-bold">{activeAccount}</span>
+              Wallet:{" "}
+              <span className="theme-text font-bold">
+                {activeAccount || "Connect or inspect a NEAR wallet"}
+              </span>
             </div>
           </div>
 
@@ -620,7 +622,7 @@ export default function Home() {
                     onClick={() => setWalletOpen(true)}
                     className="text-[11px] font-mono text-[#00EC97] hover:underline"
                   >
-                    {shortAddr(activeAccount)}
+                    {activeAccount ? shortAddr(activeAccount) : "Connect Wallet"}
                   </button>
                 </div>
 
@@ -1170,69 +1172,36 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ================= 5. USE CASES & HACKATHON SUBMIT ================= */}
-        <section id="submit" className="max-w-7xl mx-auto px-6 py-16 border-t border-[#1C1C1C]">
-          <div className="near-card p-7 rounded-3xl space-y-6 border border-[#00EC97]/30">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center space-x-2 text-xs font-mono text-[#00EC97]">
-                  <Award className="w-4 h-4" />
-                  <span>NEAR HACKATHON SUBMISSION DETAILS</span>
-                </div>
-                <h2 className="text-2xl font-black text-white mt-1">Ready for Judging &amp; Payout</h2>
-              </div>
-              <a
-                href="https://nearhackathon.com/#apply"
-                target="_blank"
-                rel="noreferrer"
-                className="px-4 py-2.5 rounded-xl bg-[#00EC97] text-black text-xs font-bold hover:bg-[#17D9D4] transition flex items-center space-x-1.5"
-              >
-                <span>Open Hackathon Apply</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            </div>
+        {/* ================= 5. REAL-WORLD USE CASES ================= */}
+        <section id="use-cases" className="max-w-7xl mx-auto px-6 py-16 border-t border-[#1C1C1C]">
+          <div className="space-y-2 mb-8">
+            <div className="text-xs font-mono uppercase tracking-widest theme-text">Real-World Applications</div>
+            <h2 className="text-3xl font-black text-white">Built for Global On-Chain Security</h2>
+            <p className="text-sm text-neutral-400 max-w-2xl">
+              Anyone with a NEAR wallet can use MamoruX to shield cross-chain swaps from MEV and enforce AI safety policies.
+            </p>
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-              <div className="p-4 rounded-xl bg-[#111111] border border-[#262626] flex items-center justify-between">
-                <div>
-                  <div className="text-neutral-500">Project Name</div>
-                  <div className="text-white font-bold mt-0.5">MamoruX</div>
-                </div>
-                <button onClick={() => copyText("MamoruX", "sub-name")} className="text-[#00EC97]">
-                  {copiedKey === "sub-name" ? "Copied!" : "Copy"}
-                </button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[
+              {
+                title: "DAO & Protocol Treasuries",
+                desc: "Rebalance multi-chain reserves (ETH, SOL, BTC, NEAR) peer-to-peer with deterministic slippage and notional caps.",
+              },
+              {
+                title: "Autonomous AI Agents",
+                desc: "Give trading and treasury agents an un-bypassable Sentinel firewall that vetoes prompt-injection and drain attempts.",
+              },
+              {
+                title: "Institutional & Private Traders",
+                desc: "Keep order sizes and strategies confidential inside NEAR AI Cloud TEEs instead of leaking them to public mempools.",
+              },
+            ].map((uc) => (
+              <div key={uc.title} className="near-card p-6 rounded-2xl space-y-2">
+                <h3 className="text-base font-bold text-white">{uc.title}</h3>
+                <p className="text-xs text-neutral-400 leading-relaxed">{uc.desc}</p>
               </div>
-
-              <div className="p-4 rounded-xl bg-[#111111] border border-[#262626] flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-neutral-500">Your NEAR Wallet Address</div>
-                  <div className="text-[#00EC97] font-bold mt-0.5 truncate">{activeAccount}</div>
-                </div>
-                <button onClick={() => copyText(activeAccount, "sub-wallet")} className="text-[#00EC97] shrink-0">
-                  {copiedKey === "sub-wallet" ? "Copied!" : "Copy"}
-                </button>
-              </div>
-
-              <div className="p-4 rounded-xl bg-[#111111] border border-[#262626] flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-neutral-500">Repository Link</div>
-                  <div className="text-white mt-0.5 truncate">https://github.com/bakarezainab/MamoruX</div>
-                </div>
-                <button
-                  onClick={() => copyText("https://github.com/bakarezainab/MamoruX", "sub-repo")}
-                  className="text-[#00EC97] shrink-0"
-                >
-                  {copiedKey === "sub-repo" ? "Copied!" : "Copy"}
-                </button>
-              </div>
-
-              <div className="p-4 rounded-xl bg-[#111111] border border-[#262626]">
-                <div className="text-neutral-500">Selected Tracks (5)</div>
-                <div className="text-white mt-0.5">
-                  Unstoppable DeFi, Privacy &amp; Private AI, AI Swarms, AI Security &amp; Defense, Agent Economy
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </section>
       </main>
@@ -1246,7 +1215,7 @@ export default function Home() {
                 <MamoruLogo size={34} />
                 <div>
                   <h3 className="text-sm font-bold text-white">NEAR Wallet &amp; MPC Inspector</h3>
-                  <p className="text-[11px] text-neutral-400">Connect idealz.near or inspect any NEAR account</p>
+                  <p className="text-[11px] text-neutral-400">Connect any NEAR wallet or inspect an address</p>
                 </div>
               </div>
               <button onClick={() => setWalletOpen(false)} className="text-neutral-400 hover:text-white">
@@ -1312,7 +1281,7 @@ export default function Home() {
                   type="text"
                   value={walletInput}
                   onChange={(e) => setWalletInput(e.target.value)}
-                  placeholder="idealz.near"
+                  placeholder="yourname.near"
                   className="flex-1 bg-[#111111] border border-[#262626] focus:border-[#00EC97] rounded-xl px-3.5 py-2.5 text-xs font-mono text-white outline-none"
                 />
                 <button
