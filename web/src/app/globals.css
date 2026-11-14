@@ -9,6 +9,10 @@
   --near-teal: #17d9d4;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   color: var(--foreground);
   background: var(--background);
@@ -17,23 +21,27 @@ body {
 }
 
 .near-card {
-  background: rgba(23, 23, 23, 0.85);
-  backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, rgba(24, 24, 27, 0.88) 0%, rgba(15, 15, 18, 0.92) 100%);
+  backdrop-filter: blur(18px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   transition: border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .near-card:hover {
   border-color: rgba(0, 236, 151, 0.35);
+  box-shadow: 0 12px 36px -12px rgba(0, 236, 151, 0.16);
 }
 
 .near-glow {
-  box-shadow: 0 0 32px rgba(0, 236, 151, 0.14);
+  box-shadow: 0 0 42px rgba(0, 236, 151, 0.16);
 }
 
 .near-grid-bg {
-  background-image: radial-gradient(rgba(0, 236, 151, 0.08) 1px, transparent 1px);
-  background-size: 28px 28px;
+  background-image:
+    radial-gradient(circle at 20% 0%, rgba(0, 236, 151, 0.08), transparent 40%),
+    radial-gradient(circle at 80% 10%, rgba(23, 217, 212, 0.07), transparent 38%),
+    radial-gradient(rgba(0, 236, 151, 0.07) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 28px 28px;
 }
 
 @keyframes gradientShift {
@@ -44,4 +52,14 @@ body {
 .animate-gradient {
   background-size: 200% 200%;
   animation: gradientShift 6s ease infinite;
+}
+
+@keyframes beamSweep {
+  0% { transform: translateX(-100%); opacity: 0; }
+  50% { opacity: 0.7; }
+  100% { transform: translateX(200%); opacity: 0; }
+}
+
+.animate-beam {
+  animation: beamSweep 3.5s ease-in-out infinite;
 }

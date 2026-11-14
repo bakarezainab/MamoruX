@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 460" fill="none">
+  <defs>
+    <radialGradient id="bg-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00EC97" stop-opacity="0.18"/>
+      <stop offset="55%" stop-color="#17D9D4" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#0A0A0A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="prism-top" x1="220" y1="110" x2="420" y2="230" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1E2926"/>
+      <stop offset="100%" stop-color="#0E1412"/>
+    </linearGradient>
+    <linearGradient id="prism-left" x1="200" y1="180" x2="320" y2="350" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#14181A"/>
+      <stop offset="100%" stop-color="#090B0C"/>
+    </linearGradient>
+    <linearGradient id="prism-right" x1="320" y1="210" x2="440" y2="350" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#101C18"/>
+      <stop offset="100%" stop-color="#080B0A"/>
+    </linearGradient>
+    <linearGradient id="mint-line" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00EC97"/>
+      <stop offset="100%" stop-color="#17D9D4"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="320" cy="230" r="215" fill="url(#bg-glow)"/>
+
+  <!-- Orbital rings -->
+  <ellipse cx="320" cy="235" rx="235" ry="95" stroke="#00EC97" stroke-opacity="0.16" stroke-width="1.2" stroke-dasharray="6 8"/>
+  <ellipse cx="320" cy="235" rx="185" ry="72" stroke="#17D9D4" stroke-opacity="0.22" stroke-width="1.2"/>
+
+  <!-- Cross-chain beams -->
+  <path d="M95 120 Q205 160 275 210" stroke="#00EC97" stroke-width="2" stroke-opacity="0.55" stroke-dasharray="6 6">
+    <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1.8s" repeatCount="indefinite"/>
+  </path>
+  <path d="M545 120 Q435 160 365 210" stroke="#17D9D4" stroke-width="2" stroke-opacity="0.55" stroke-dasharray="6 6">
+    <animate attributeName="stroke-dashoffset" from="24" to="0" dur="1.6s" repeatCount="indefinite"/>
+  </path>
+  <path d="M95 350 Q205 310 275 265" stroke="#17D9D4" stroke-width="2" stroke-opacity="0.5" stroke-dasharray="6 6">
+    <animate attributeName="stroke-dashoffset" from="0" to="24" dur="2s" repeatCount="indefinite"/>
+  </path>
+  <path d="M545 350 Q435 310 365 265" stroke="#00EC97" stroke-width="2" stroke-opacity="0.5" stroke-dasharray="6 6">
+    <animate attributeName="stroke-dashoffset" from="0" to="24" dur="2.2s" repeatCount="indefinite"/>
+  </path>
+
+  <!-- Central 3D Obsidian Vault Prism -->
+  <polygon points="320,108 430,172 320,236 210,172" fill="url(#prism-top)" stroke="#00EC97" stroke-opacity="0.65" stroke-width="1.6"/>
+  <polygon points="210,172 320,236 320,358 210,294" fill="url(#prism-left)" stroke="#2A3A35" stroke-width="1.4"/>
+  <polygon points="430,172 320,236 320,358 430,294" fill="url(#prism-right)" stroke="#00EC97" stroke-opacity="0.35" stroke-width="1.4"/>
+
+  <!-- Inner Core Shield -->
+  <polygon points="320,145 375,177 320,209 265,177" fill="#00EC97" fill-opacity="0.14" stroke="#00EC97" stroke-width="1.5"/>
+  <circle cx="320" cy="177" r="10" fill="#00EC97">
+    <animate attributeName="r" values="8;12;8" dur="2.6s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.8;1;0.8" dur="2.6s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- 4 Chain Nodes -->
+  <g transform="translate(65,92)">
+    <rect width="62" height="52" rx="14" fill="#121416" stroke="#00EC97" stroke-opacity="0.5" stroke-width="1.4"/>
+    <text x="31" y="31" text-anchor="middle" fill="#00EC97" font-family="monospace" font-size="13" font-weight="700">ETH</text>
+  </g>
+  <g transform="translate(513,92)">
+    <rect width="62" height="52" rx="14" fill="#121416" stroke="#17D9D4" stroke-opacity="0.5" stroke-width="1.4"/>
+    <text x="31" y="31" text-anchor="middle" fill="#17D9D4" font-family="monospace" font-size="13" font-weight="700">SOL</text>
+  </g>
+  <g transform="translate(65,322)">
+    <rect width="62" height="52" rx="14" fill="#121416" stroke="#17D9D4" stroke-opacity="0.5" stroke-width="1.4"/>
+    <text x="31" y="31" text-anchor="middle" fill="#17D9D4" font-family="monospace" font-size="13" font-weight="700">BTC</text>
+  </g>
+  <g transform="translate(513,322)">
+    <rect width="62" height="52" rx="14" fill="#121416" stroke="#00EC97" stroke-opacity="0.6" stroke-width="1.4"/>
+    <text x="31" y="31" text-anchor="middle" fill="#00EC97" font-family="monospace" font-size="13" font-weight="700">NEAR</text>
+  </g>
+</svg>

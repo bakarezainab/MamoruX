@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import {
   ShieldCheck,
-  Lock,
   Cpu,
   ArrowRightLeft,
   Layers,
@@ -27,10 +26,10 @@ import {
   Trash2,
   PenTool,
   Send,
+  Zap,
 } from "lucide-react";
 import { useNearWallet } from "@/components/NearWalletProvider";
-
-type TabId = "overview" | "app" | "how-it-works" | "models" | "submit";
+import { MamoruLogo } from "@/components/MamoruLogo";
 
 interface QueuedIntent {
   id: string;
@@ -68,8 +67,8 @@ interface SwarmResponse {
     };
   }>;
   reports: {
-    strategist: { verdict: string; riskScore: number; findings: string[]; model: string; mode: string };
-    sentinel: { verdict: string; riskScore: number; findings: string[]; model: string; mode: string };
+    strategist: { verdict: string; riskScore: number; findings: string[]; model: string; mode: string; teeChatId?: string };
+    sentinel: { verdict: string; riskScore: number; findings: string[]; model: string; mode: string; teeChatId?: string };
     matcher: { verdict: string; riskScore: number; findings: string[]; model: string; mode: string };
   };
   rejectionReason: string | null;
@@ -94,7 +93,6 @@ interface WalletInfo {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<TabId>("overview");
   const {
     network,
     setNetwork,
@@ -162,7 +160,7 @@ export default function Home() {
       const data = await res.json();
       if (Array.isArray(data.pool)) setPool(data.pool);
     } catch {
-      // ignore initial pool fetch error
+      // ignore
     }
   };
 
@@ -194,67 +192,6 @@ export default function Home() {
     }
   };
 
-  useEffect(() => {
-    loadPool();
-    loadNearAi();
-    inspectWallet("idealz.near", "mainnet");
-  }, []);
-
-  useEffect(() => {
-    if (connectedAccountId) {
-      setWalletInput(connectedAccountId);
-      setActiveAccount(connectedAccountId);
-      inspectWallet(connectedAccountId, network);
-    }
-  }, [connectedAccountId, network]);
-
-  useEffect(() => {
-    setVaultContractInput(network === "mainnet" ? "mamorux-vault.near" : "mamorux-vault.testnet");
-  }, [network]);
-
-  const handleSignNearIntent = async () => {
-    if (!swarmResult) return;
-    setNearActionLoading(true);
-    setNearActionError(null);
-    setNearSig(null);
-    try {
-      const msg = `MamoruX Intent Authorization\nAccount: ${activeAccount}\nPlanHash: ${swarmResult.planHash}\nSell: ${amount} ${sellAsset} (${sellChain})\nBuy: ${buyAsset} (${buyChain})\nSlippage: ${slippageBps} bps`;
-      const res = await signIntentMessage(msg);
-      setNearSig(res);
-    } catch (e) {
-      setNearActionError((e as Error).message);
-    } finally {
-      setNearActionLoading(false);
-    }
-  };
-
-  const handleSendOnChainTx = async () => {
-    if (!swarmResult) return;
-    setNearActionLoading(true);
-    setNearActionError(null);
-    setNearTx(null);
-    try {
-      const res = await sendFunctionCall({
-        receiverId: vaultContractInput.trim(),
-        methodName: "submit_intent",
-        args: {
-          plan_hash: swarmResult.planHash,
-          sell_asset: `${sellChain}:${sellAsset}`,
-          buy_asset: `${buyChain}:${buyAsset}`,
-          amount,
-          max_slippage_bps: Number(slippageBps),
-        },
-        gas: "30000000000000",
-        depositYocto: "0",
-      });
-      setNearTx(res);
-    } catch (e) {
-      setNearActionError((e as Error).message);
-    } finally {
-      setNearActionLoading(false);
-    }
-  };
-
   const inspectWallet = async (accId = walletInput, net = network) => {
     const clean = accId.trim().toLowerCase();
     if (!clean) {
@@ -278,6 +215,24 @@ export default function Home() {
       setWalletLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadPool();
+    loadNearAi();
+    inspectWallet("idealz.near", "mainnet");
+  }, []);
+
+  useEffect(() => {
+    if (connectedAccountId) {
+      setWalletInput(connectedAccountId);
+      setActiveAccount(connectedAccountId);
+      inspectWallet(connectedAccountId, network);
+    }
+  }, [connectedAccountId, network]);
+
+  useEffect(() => {
+    setVaultContractInput(network === "mainnet" ? "mamorux-vault.near" : "mamorux-vault.testnet");
+  }, [network]);
 
   const handleGenerateWallet = async () => {
     setWalletLoading(true);
@@ -336,18 +291,59 @@ export default function Home() {
     }
   };
 
+  const handleSignNearIntent = async () => {
+    if (!swarmResult) return;
+    setNearActionLoading(true);
+    setNearActionError(null);
+    setNearSig(null);
+    try {
+      const msg = `MamoruX Intent Authorization\nAccount: ${activeAccount}\nPlanHash: ${swarmResult.planHash}\nSell: ${amount} ${sellAsset} (${sellChain})\nBuy: ${buyAsset} (${buyChain})\nSlippage: ${slippageBps} bps`;
+      const res = await signIntentMessage(msg);
+      setNearSig(res);
+    } catch (e) {
+      setNearActionError((e as Error).message);
+    } finally {
+      setNearActionLoading(false);
+    }
+  };
+
+  const handleSendOnChainTx = async () => {
+    if (!swarmResult) return;
+    setNearActionLoading(true);
+    setNearActionError(null);
+    setNearTx(null);
+    try {
+      const res = await sendFunctionCall({
+        receiverId: vaultContractInput.trim(),
+        methodName: "submit_intent",
+        args: {
+          plan_hash: swarmResult.planHash,
+          sell_asset: `${sellChain}:${sellAsset}`,
+          buy_asset: `${buyChain}:${buyAsset}`,
+          amount,
+          max_slippage_bps: Number(slippageBps),
+        },
+        gas: "30000000000000",
+        depositYocto: "0",
+      });
+      setNearTx(res);
+    } catch (e) {
+      setNearActionError((e as Error).message);
+    } finally {
+      setNearActionLoading(false);
+    }
+  };
+
   const shortAddr = (addr: string) =>
     addr.length > 20 ? `${addr.slice(0, 8)}...${addr.slice(-6)}` : addr;
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-white near-grid-bg flex flex-col">
-      {/* Top Navbar */}
+      {/* Sticky Single-Page Navbar */}
       <header className="border-b border-[#262626] bg-[#0A0A0A]/85 backdrop-blur-xl sticky top-0 z-40 px-4 md:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => setActiveTab("overview")}>
-            <div className="w-10 h-10 rounded-xl bg-[#00EC97] flex items-center justify-center shadow-lg shadow-[#00EC97]/20 group-hover:scale-105 transition-transform">
-              <Lock className="w-5 h-5 text-black stroke-[2.5]" />
-            </div>
+          <a href="#top" className="flex items-center space-x-3 group">
+            <MamoruLogo size={42} className="group-hover:scale-105 transition-transform duration-300" />
             <div>
               <div className="flex items-center space-x-2">
                 <span className="font-black text-lg tracking-tight text-white">
@@ -357,29 +353,24 @@ export default function Home() {
                   NEAR Protocol
                 </span>
               </div>
-              <p className="text-[11px] text-neutral-400">Private AI Dark-Pool &amp; Policy Firewall</p>
+              <p className="text-[11px] text-neutral-400">Confidential AI Dark-Pool &amp; Policy Firewall</p>
             </div>
-          </div>
+          </a>
 
-          <nav className="hidden lg:flex items-center space-x-1 bg-[#141414] border border-[#262626] p-1 rounded-xl">
+          <nav className="hidden lg:flex items-center space-x-1 bg-[#141414]/90 border border-[#262626] p-1 rounded-xl">
             {[
-              { id: "overview", label: "Overview" },
-              { id: "app", label: "Live Dark-Pool" },
-              { id: "how-it-works", label: "How It Works" },
-              { id: "models", label: "AI & Security" },
-              { id: "submit", label: "Use Cases & Submit" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabId)}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  activeTab === tab.id
-                    ? "bg-[#00EC97] text-black shadow-sm"
-                    : "text-neutral-400 hover:text-white hover:bg-[#1F1F1F]"
-                }`}
+              { href: "#how-it-works", label: "How It Works" },
+              { href: "#live-app", label: "Live Dark-Pool" },
+              { href: "#ai-security", label: "AI & Security" },
+              { href: "#submit", label: "Use Cases & Submit" },
+            ].map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-neutral-300 hover:text-black hover:bg-[#00EC97] transition-all"
               >
-                {tab.label}
-              </button>
+                {item.label}
+              </a>
             ))}
           </nav>
 
@@ -396,191 +387,190 @@ export default function Home() {
               <span>
                 {connectedAccountId
                   ? `${shortAddr(connectedAccountId)} (${walletName || "Connected"})`
-                  : `Connect Wallet (${activeAccount ? shortAddr(activeAccount) : "NEAR"})`}
+                  : `Connect (${activeAccount ? shortAddr(activeAccount) : "NEAR"})`}
               </span>
             </button>
 
             <button
               onClick={() => setWalletOpen(true)}
-              title="Inspect NEAR Wallet & MPC Keys"
               className="hidden sm:flex items-center px-3 py-2 rounded-xl bg-[#171717] hover:bg-[#222222] border border-[#262626] text-xs font-mono text-neutral-300 transition"
             >
               Inspector
             </button>
-
-            <button
-              onClick={() => setActiveTab("app")}
-              className="hidden sm:flex items-center space-x-1.5 bg-[#00EC97] hover:bg-[#17D9D4] text-black px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-lg shadow-[#00EC97]/15"
-            >
-              <span>Launch App</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
           </div>
-        </div>
-
-        <div className="flex lg:hidden items-center space-x-1 overflow-x-auto pt-3 pb-1">
-          {[
-            { id: "overview", label: "Overview" },
-            { id: "app", label: "Live Dark-Pool" },
-            { id: "how-it-works", label: "How It Works" },
-            { id: "models", label: "AI & Security" },
-            { id: "submit", label: "Use Cases & Submit" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as TabId)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
-                activeTab === tab.id ? "bg-[#00EC97] text-black" : "bg-[#171717] text-neutral-400"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
         </div>
       </header>
 
-      <main className="flex-1">
-        {/* ================= OVERVIEW TAB ================= */}
-        {activeTab === "overview" && (
-          <section className="max-w-7xl mx-auto px-6 pt-14 pb-24 space-y-20 animate-fadeInUp">
-            <div className="relative text-center space-y-7 max-w-4xl mx-auto">
-              <div className="absolute -top-16 left-1/2 -translate-x-1/2 w-96 h-48 bg-[#00EC97]/10 blur-[100px] rounded-full pointer-events-none" />
-
-              <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[#171717] border border-[#00EC97]/30 text-xs text-[#00EC97] font-mono">
+      <main id="top" className="flex-1">
+        {/* ================= 1. HERO SECTION ================= */}
+        <section className="max-w-7xl mx-auto px-6 pt-12 pb-16">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            <div className="lg:col-span-7 space-y-6 animate-fadeInUp">
+              <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[#00EC97]/10 border border-[#00EC97]/30 text-[#00EC97] text-xs font-mono">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>NEAR Protocol Hackathon 2026 • 5 Target Tracks</span>
+                <span>NEAR AI Cloud TEE &bull; NEAR Intents 1Click &bull; MPC Chain Signatures</span>
               </div>
 
-              <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-white leading-[1.08]">
-                Trade Across Chains in the{" "}
-                <span className="bg-gradient-to-r from-[#00EC97] via-[#17D9D4] to-[#00EC97] animate-gradient bg-clip-text text-transparent">
-                  Dark.
-                </span>
-                <br />
-                Verified by{" "}
-                <span className="text-white underline decoration-[#00EC97] decoration-4 underline-offset-8">
-                  Confidential AI.
-                </span>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.06] text-white">
+                Private Cross-Chain{" "}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00EC97] via-[#17D9D4] to-[#00EC97] animate-gradient">
+                  AI Dark-Pool
+                </span>{" "}
+                &amp; Policy Firewall.
               </h1>
 
-              <p className="text-base sm:text-lg text-neutral-400 max-w-2xl mx-auto leading-relaxed">
-                <strong>MamoruX</strong> (<em>mamoru</em> = to protect) is an institutional cross-chain dark pool and AI security firewall.
-                Three specialized agents audit, net, and settle orders across Bitcoin, Ethereum, and Solana via{" "}
-                <strong>NEAR Intents (1Click)</strong>, <strong>Chain Signatures</strong>, and <strong>NEAR AI Cloud TEEs</strong>.
+              <p className="text-base sm:text-lg text-neutral-300 leading-relaxed max-w-2xl">
+                MamoruX seals institutional swap intents inside NEAR AI Cloud TEEs, nets opposing orders peer-to-peer to
+                eliminate MEV leakage, enforces deterministic <code className="text-[#00EC97]">MamoruVault</code> guardrails,
+                and settles residuals across Ethereum, Solana, Bitcoin, and NEAR.
               </p>
 
-              <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
-                <button
-                  onClick={() => setActiveTab("app")}
-                  className="px-7 py-3.5 rounded-xl bg-[#00EC97] hover:bg-[#17D9D4] text-black font-bold text-sm transition-all shadow-xl shadow-[#00EC97]/20 flex items-center space-x-2"
+              <div className="flex flex-wrap items-center gap-3.5 pt-2">
+                <a
+                  href="#live-app"
+                  className="px-6 py-3.5 rounded-xl bg-[#00EC97] hover:bg-[#17D9D4] text-black font-bold text-sm transition-all flex items-center space-x-2 shadow-xl shadow-[#00EC97]/20"
                 >
-                  <span>Open Live Dark-Pool</span>
+                  <Zap className="w-4 h-4" />
+                  <span>Try Live Dark-Pool</span>
                   <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setWalletOpen(true)}
-                  className="px-6 py-3.5 rounded-xl bg-[#171717] hover:bg-[#222222] text-white border border-[#2E2E2E] hover:border-[#00EC97]/40 font-semibold text-sm transition-all flex items-center space-x-2"
+                </a>
+                <a
+                  href="#how-it-works"
+                  className="px-6 py-3.5 rounded-xl bg-[#171717] hover:bg-[#222222] border border-[#2E2E2E] text-white font-semibold text-sm transition-all"
                 >
-                  <Wallet className="w-4 h-4 text-[#00EC97]" />
-                  <span>Connect or Generate NEAR Wallet</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-              <div className="near-card p-6 rounded-2xl space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-[#00EC97]/10 border border-[#00EC97]/30 flex items-center justify-center text-[#00EC97]">
-                  <EyeOff className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-white">NEAR AI Cloud (TEEs)</h3>
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  Confidential inference inside Intel TDX / NVIDIA enclaves. Only <code className="text-[#00EC97]">plan_hash</code> and hardware signatures touch the chain.
-                </p>
+                  How It Works
+                </a>
               </div>
 
-              <div className="near-card p-6 rounded-2xl space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-[#17D9D4]/10 border border-[#17D9D4]/30 flex items-center justify-center text-[#17D9D4]">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-white">MamoruVault (Rust SDK)</h3>
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  On-chain policy firewall enforcing risk ceilings (&le; 60), quorum, chain allowlists, and an emergency Sentinel <code className="text-[#17D9D4]">pause()</code>.
-                </p>
-              </div>
-
-              <div className="near-card p-6 rounded-2xl space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-[#00EC97]/10 border border-[#00EC97]/30 flex items-center justify-center text-[#00EC97]">
-                  <ArrowRightLeft className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-white">NEAR Intents (1Click)</h3>
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  Peer-to-peer internal crosses settle privately; residual unmatched flow queries live 1Click solvers for optimal cross-chain quotes.
-                </p>
-              </div>
-
-              <div className="near-card p-6 rounded-2xl space-y-3">
-                <div className="w-10 h-10 rounded-xl bg-[#17D9D4]/10 border border-[#17D9D4]/30 flex items-center justify-center text-[#17D9D4]">
-                  <Key className="w-5 h-5" />
-                </div>
-                <h3 className="font-bold text-white">Chain Signatures MPC</h3>
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  Single NEAR vault derives and signs native Bitcoin, Ethereum, and Solana transactions via <code className="text-[#17D9D4]">v1.signer</code> without bridges.
-                </p>
-              </div>
-            </div>
-
-            <div className="near-card p-8 rounded-3xl space-y-6">
-              <div className="flex items-center space-x-3">
-                <Award className="w-6 h-6 text-[#00EC97]" />
-                <h2 className="text-lg font-bold text-white tracking-wide">5 Targeted Hackathon Tracks</h2>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 text-xs">
+              <div className="grid grid-cols-3 gap-4 pt-4 max-w-xl">
                 {[
-                  { name: "01. Unstoppable DeFi", desc: "MEV-free dark-pool swaps settled via NEAR Intents & Chain Signatures." },
-                  { name: "02. Privacy & Private AI", desc: "Sealed trade intents inside Intel TDX enclaves; zero public alpha leakage." },
-                  { name: "03. AI Swarms", desc: "Strategist, Sentinel & Matcher agents reaching cryptographic quorum." },
-                  { name: "04. AI Security & Defense", desc: "Prompt-injection firewall, risk caps & Sentinel circuit breaker." },
-                  { name: "05. Agent Economy", desc: "Autonomous agents deriving keys and clearing multi-chain value." },
-                ].map((t, i) => (
-                  <div key={i} className="p-4 rounded-xl bg-[#111111] border border-[#262626] space-y-2">
-                    <span className="text-[#00EC97] font-mono font-bold block">{t.name}</span>
-                    <p className="text-neutral-400 leading-relaxed">{t.desc}</p>
+                  { label: "P2P Dark-Pool", value: "0% MEV" },
+                  { label: "NEAR AI Cloud", value: `${nearAiModels.length || "20+"} Models` },
+                  { label: "Active Account", value: shortAddr(activeAccount) },
+                ].map((stat, idx) => (
+                  <div key={idx} className="near-card px-4 py-3 rounded-xl">
+                    <div className="text-[11px] font-mono text-neutral-400">{stat.label}</div>
+                    <div className="text-sm sm:text-base font-black text-[#00EC97] mt-0.5 truncate">{stat.value}</div>
                   </div>
                 ))}
               </div>
             </div>
-          </section>
-        )}
 
-        {/* ================= LIVE DARK-POOL APP TAB ================= */}
-        {activeTab === "app" && (
-          <section className="max-w-7xl mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fadeInUp">
-            {/* Left Column: Real Intent Composer + Dark-Pool Queue */}
-            <div className="lg:col-span-5 space-y-6">
-              <div className="near-card p-6 rounded-2xl space-y-5">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-white flex items-center space-x-2">
-                    <Lock className="w-4 h-4 text-[#00EC97]" />
-                    <span>Sealed Intent Composer</span>
-                  </h2>
-                  <span className="text-[11px] font-mono text-[#00EC97] bg-[#00EC97]/10 px-2.5 py-0.5 rounded-full border border-[#00EC97]/30">
-                    {activeAccount ? shortAddr(activeAccount) : "No Wallet"}
+            <div className="lg:col-span-5 animate-fadeInUp">
+              <div className="relative near-card rounded-3xl p-3 near-glow overflow-hidden group">
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#00EC97] to-transparent animate-beam" />
+                <img
+                  src="/images/hero-vault.jpg"
+                  alt="MamoruX Confidential Cryptographic Vault on NEAR"
+                  className="w-full h-auto rounded-2xl object-cover group-hover:scale-[1.02] transition-transform duration-500"
+                />
+                <div className="mt-3 px-3 py-2 rounded-xl bg-[#0D0D0D]/90 border border-[#262626] flex items-center justify-between text-xs font-mono">
+                  <span className="text-neutral-400 flex items-center space-x-2">
+                    <span className="w-2 h-2 rounded-full bg-[#00EC97] animate-pulse" />
+                    <span>Mainnet RPC: {walletInfo?.rpcReachable ? "Live" : "Checking..."}</span>
                   </span>
+                  <span className="text-[#00EC97] font-bold">{activeAccount}</span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-                {!activeAccount && (
+        {/* ================= 2. HOW IT WORKS (ON THE HOME PAGE) ================= */}
+        <section id="how-it-works" className="max-w-7xl mx-auto px-6 py-16 border-t border-[#1C1C1C]">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-10">
+            <div className="space-y-2 max-w-2xl">
+              <div className="text-xs font-mono uppercase tracking-widest text-[#00EC97]">Architecture &amp; Flow</div>
+              <h2 className="text-3xl sm:text-4xl font-black text-white">How MamoruX Works</h2>
+              <p className="text-sm text-neutral-400">
+                From sealed cross-chain intent to verifiable NEAR settlement in four cryptographic stages.
+              </p>
+            </div>
+            <a
+              href="#live-app"
+              className="text-xs font-mono text-[#00EC97] hover:underline flex items-center space-x-1"
+            >
+              <span>Jump to Interactive Demo</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </a>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {[
+              {
+                step: "01",
+                icon: <EyeOff className="w-5 h-5 text-[#00EC97]" />,
+                title: "Sealed Private Intent",
+                desc: "Users queue cross-chain intents (e.g. ETH -> SOL) signed with NEP-413 (0 gas) or MamoruVault, hidden from public mempools.",
+              },
+              {
+                step: "02",
+                icon: <Cpu className="w-5 h-5 text-[#17D9D4]" />,
+                title: "NEAR AI Cloud TEE",
+                desc: "Strategist & Sentinel agents execute inside hardware-attested NEAR AI Cloud enclaves to block prompt-injection and slippage attacks.",
+              },
+              {
+                step: "03",
+                icon: <ArrowRightLeft className="w-5 h-5 text-[#00EC97]" />,
+                title: "CoW Dark-Pool + 1Click",
+                desc: "Opposing orders net 1:1 peer-to-peer at live mid-market prices; only the unmatched residual routes through NEAR Intents 1Click.",
+              },
+              {
+                step: "04",
+                icon: <Key className="w-5 h-5 text-[#17D9D4]" />,
+                title: "MPC Chain Signatures",
+                desc: "v1.signer derives deterministic EVM, Solana, and Bitcoin vault addresses directly from your NEAR account without bridges.",
+              },
+            ].map((item) => (
+              <div
+                key={item.step}
+                className="near-card p-6 rounded-2xl space-y-3 relative overflow-hidden group hover:-translate-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="w-10 h-10 rounded-xl bg-[#00EC97]/10 border border-[#00EC97]/30 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    {item.icon}
+                  </div>
+                  <span className="font-mono text-xs font-bold text-neutral-500">STEP {item.step}</span>
+                </div>
+                <h3 className="text-base font-bold text-white">{item.title}</h3>
+                <p className="text-xs text-neutral-400 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ================= 3. LIVE INTERACTIVE DARK-POOL ================= */}
+        <section id="live-app" className="max-w-7xl mx-auto px-6 py-16 border-t border-[#1C1C1C]">
+          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <div className="text-xs font-mono uppercase tracking-widest text-[#00EC97]">Interactive Mainnet &amp; Testnet Sandbox</div>
+              <h2 className="text-3xl font-black text-white mt-1">Live Dark-Pool &amp; NEAR Swarm</h2>
+            </div>
+            <div className="text-xs font-mono text-neutral-400">
+              Connected Account: <span className="text-[#00EC97] font-bold">{activeAccount}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
+            {/* Left Column: Order Builder + Queue + NEAR AI + MPC */}
+            <div className="lg:col-span-5 space-y-5">
+              <div className="near-card p-6 rounded-3xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center space-x-2">
+                    <ArrowRightLeft className="w-4 h-4 text-[#00EC97]" />
+                    <span>Private Intent Builder</span>
+                  </h3>
                   <button
                     onClick={() => setWalletOpen(true)}
-                    className="w-full p-3 rounded-xl bg-[#00EC97]/10 border border-[#00EC97]/40 text-[#00EC97] text-xs font-mono text-left flex items-center justify-between"
+                    className="text-[11px] font-mono text-[#00EC97] hover:underline"
                   >
-                    <span>Click here to connect or generate your NEAR wallet first</span>
-                    <ChevronRight className="w-4 h-4" />
+                    {shortAddr(activeAccount)}
                   </button>
-                )}
+                </div>
 
                 <div className="p-3.5 rounded-xl bg-[#111111] border border-[#262626] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-mono text-neutral-400 uppercase">Sell Amount &amp; Chain</label>
+                  <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400">
+                    <label>SELL AMOUNT</label>
                     <select
                       value={`${sellAsset}:${sellChain}`}
                       onChange={(e) => {
@@ -588,7 +578,7 @@ export default function Home() {
                         setSellAsset(sym);
                         setSellChain(ch);
                       }}
-                      className="bg-[#1C1C1C] text-xs font-mono text-[#00EC97] border border-[#2E2E2E] rounded-lg px-2 py-1 outline-none"
+                      className="bg-[#1C1C1C] text-xs text-[#00EC97] border border-[#2E2E2E] rounded-lg px-2.5 py-1 outline-none"
                     >
                       <option value="ETH:ethereum">ETH (Ethereum)</option>
                       <option value="SOL:solana">SOL (Solana)</option>
@@ -605,12 +595,6 @@ export default function Home() {
                     className="bg-transparent font-mono text-2xl font-bold text-white outline-none w-full"
                     placeholder="0.0"
                   />
-                </div>
-
-                <div className="flex justify-center -my-3 relative z-10">
-                  <div className="w-8 h-8 rounded-full bg-[#1C1C1C] border border-[#2E2E2E] flex items-center justify-center text-[#00EC97]">
-                    <ArrowRightLeft className="w-3.5 h-3.5" />
-                  </div>
                 </div>
 
                 <div className="p-3.5 rounded-xl bg-[#111111] border border-[#262626] flex items-center justify-between">
@@ -701,7 +685,7 @@ export default function Home() {
                 </div>
                 {pool.length === 0 ? (
                   <p className="text-xs text-neutral-500 font-mono">
-                    Pool is empty. Queue an intent from one wallet, switch wallets, and execute an opposite intent to demo P2P netting.
+                    Queue an intent from one wallet, switch wallets, and execute an opposite intent to demo P2P netting.
                   </p>
                 ) : (
                   <div className="space-y-2 text-xs font-mono">
@@ -717,7 +701,7 @@ export default function Home() {
                 )}
               </div>
 
-              {/* NEAR AI Cloud (TEE Inference) */}
+              {/* NEAR AI Cloud (TEE) */}
               <div className="near-card p-5 rounded-2xl space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-white flex items-center space-x-2">
@@ -786,12 +770,12 @@ export default function Home() {
                     <span>Live MPC Derived Addresses</span>
                   </h3>
                   <button onClick={() => setWalletOpen(true)} className="text-[11px] font-mono text-[#00EC97] hover:underline">
-                    {activeAccount ? "Change Wallet" : "Connect"}
+                    Change Wallet
                   </button>
                 </div>
 
                 {!walletInfo ? (
-                  <p className="text-xs font-mono text-neutral-500">Connect a NEAR wallet to query live v1.signer MPC keys.</p>
+                  <p className="text-xs font-mono text-neutral-500">Querying v1.signer MPC keys...</p>
                 ) : walletInfo.derivedAccounts ? (
                   <div className="space-y-2 text-xs font-mono">
                     {(["ethereum", "solana", "bitcoin"] as const).map((ch) => (
@@ -801,7 +785,7 @@ export default function Home() {
                       >
                         <div className="min-w-0">
                           <div className="text-[10px] text-neutral-500 uppercase">
-                            {ch} • {walletInfo.derivedAccounts![ch].path}
+                            {ch} &bull; {walletInfo.derivedAccounts![ch].path}
                           </div>
                           <div className="text-neutral-200 truncate">{walletInfo.derivedAccounts![ch].address}</div>
                         </div>
@@ -816,21 +800,22 @@ export default function Home() {
                   </div>
                 ) : (
                   <p className="text-xs font-mono text-amber-400">
-                    {walletInfo.mpcError || "MPC RPC query unavailable in this environment."}
+                    {walletInfo.mpcError || "MPC RPC query unavailable."}
                   </p>
                 )}
               </div>
             </div>
 
-            {/* Right Column: Swarm Execution Output */}
+            {/* Right Column: Swarm Execution Output + NEAR Wallet Signing */}
             <div className="lg:col-span-7 space-y-6">
               {!swarmResult ? (
-                <div className="near-card p-10 rounded-3xl text-center space-y-3">
-                  <Terminal className="w-8 h-8 text-[#00EC97] mx-auto" />
-                  <h3 className="text-base font-bold text-white">Ready to Execute</h3>
-                  <p className="text-xs text-neutral-400 max-w-md mx-auto">
-                    Connect or generate your NEAR wallet, configure your cross-chain intent on the left, and click{" "}
-                    <strong>Execute Swarm</strong> to run live 1Click pricing, Sentinel firewall checks, and dark-pool matching.
+                <div className="near-card p-10 rounded-3xl text-center space-y-4">
+                  <Terminal className="w-9 h-9 text-[#00EC97] mx-auto" />
+                  <h3 className="text-lg font-bold text-white">Ready to Execute Swarm</h3>
+                  <p className="text-xs text-neutral-400 max-w-md mx-auto leading-relaxed">
+                    Configure your cross-chain intent on the left and click <strong>Execute Swarm</strong> to run live
+                    1Click pricing, NEAR AI Cloud TEE / Sentinel firewall checks, dark-pool matching, and NEP-413
+                    cryptographic signing with <code className="text-[#00EC97]">{activeAccount}</code>.
                   </p>
                 </div>
               ) : (
@@ -851,7 +836,7 @@ export default function Home() {
                             : "SENTINEL FIREWALL VETO — EXECUTION BLOCKED"}
                         </div>
                         <div className="text-[11px] font-mono opacity-90 mt-0.5">
-                          {swarmResult.rejectionReason || `Plan Commitment: ${swarmResult.planHash.slice(0, 26)}...`}
+                          {swarmResult.rejectionReason || `Plan Commitment: ${swarmResult.planHash.slice(0, 28)}...`}
                         </div>
                       </div>
                     </div>
@@ -913,7 +898,7 @@ export default function Home() {
                                     : "bg-red-500/10 text-red-400 border-red-500/30"
                                 }`}
                               >
-                                {rep.verdict.toUpperCase()} • RISK {rep.riskScore}
+                                {rep.verdict.toUpperCase()} &bull; RISK {rep.riskScore}
                               </span>
                             </div>
                             <ul className="space-y-1 text-xs font-mono text-neutral-300">
@@ -1010,7 +995,7 @@ export default function Home() {
                           className="py-2.5 px-4 rounded-xl bg-[#00EC97] hover:bg-[#17D9D4] text-black font-bold text-xs transition flex items-center justify-center space-x-2 disabled:opacity-50"
                         >
                           <PenTool className="w-3.5 h-3.5" />
-                          <span>Sign Intent Plan (NEP-413 • 0 Gas)</span>
+                          <span>Sign Intent Plan (NEP-413 &bull; 0 Gas)</span>
                         </button>
 
                         <button
@@ -1066,187 +1051,134 @@ export default function Home() {
                 </>
               )}
             </div>
-          </section>
-        )}
+          </div>
+        </section>
 
-        {/* ================= HOW IT WORKS TAB ================= */}
-        {activeTab === "how-it-works" && (
-          <section className="max-w-7xl mx-auto px-6 py-14 space-y-12 animate-fadeInUp">
-            <div className="space-y-3 max-w-2xl">
-              <h2 className="text-3xl font-black text-white">How MamoruX Works</h2>
-              <p className="text-sm text-neutral-400">
-                From sealed private intent to trustless multi-chain settlement in 4 verifiable steps.
-              </p>
+        {/* ================= 4. AI & SECURITY ARCHITECTURE ================= */}
+        <section id="ai-security" className="max-w-7xl mx-auto px-6 py-16 border-t border-[#1C1C1C]">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            <div className="lg:col-span-5">
+              <div className="near-card rounded-3xl p-4 near-glow">
+                <img
+                  src="/images/tee-enclave.svg"
+                  alt="MamoruX Hardware TEE Enclave & Sentinel Firewall"
+                  className="w-full h-auto rounded-2xl"
+                />
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-              {[
-                { step: "01", title: "Seal Intent Off-Chain", desc: "Users submit rebalancing intents to NEAR AI Cloud TEEs. Plaintext strategy never touches public mempools." },
-                { step: "02", title: "3-Agent TEE Swarm", desc: "Strategist chunks orders, Sentinel audits for prompt injections/exploits, Matcher nets opposite dark-pool flow." },
-                { step: "03", title: "MamoruVault Firewall", desc: "Rust contract verifies plan_hash, risk score <= 60, quorum >= 2, and mandatory Sentinel approval." },
-                { step: "04", title: "Intents + Chain Signatures", desc: "Crosses settle between vault accounts; residuals route to 1Click solvers; native legs sign via v1.signer." },
-              ].map((s) => (
-                <div key={s.step} className="near-card p-6 rounded-2xl space-y-3">
-                  <div className="text-xs font-mono font-bold text-[#00EC97]">STEP {s.step}</div>
-                  <h3 className="text-base font-bold text-white">{s.title}</h3>
-                  <p className="text-xs text-neutral-400 leading-relaxed">{s.desc}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ================= AI & SECURITY TAB ================= */}
-        {activeTab === "models" && (
-          <section className="max-w-7xl mx-auto px-6 py-14 space-y-10 animate-fadeInUp">
-            <div className="space-y-3 max-w-2xl">
-              <h2 className="text-3xl font-black text-white">Verifiable AI Models &amp; On-Chain Policy</h2>
-              <p className="text-sm text-neutral-400">
-                Hardware-attested TEE inference paired with deterministic Rust smart contract invariants.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="near-card p-6 rounded-2xl space-y-3">
-                <Cpu className="w-6 h-6 text-[#00EC97]" />
-                <h3 className="font-bold text-white">Strategist (DeepSeek-V3.1)</h3>
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  Deconstructs portfolio rebalances into optimal chunk sizes via <code>cloud-api.near.ai/v1</code> inside Intel TDX enclaves.
+            <div className="lg:col-span-7 space-y-6">
+              <div className="space-y-2">
+                <div className="text-xs font-mono uppercase tracking-widest text-[#00EC97]">Multi-Agent Defense</div>
+                <h2 className="text-3xl font-black text-white">AI Swarm &amp; MamoruVault Firewall</h2>
+                <p className="text-sm text-neutral-400">
+                  Three specialized agents must reach consensus before any MPC Chain Signature is authorized.
                 </p>
               </div>
-              <div className="near-card p-6 rounded-2xl space-y-3">
-                <ShieldCheck className="w-6 h-6 text-[#17D9D4]" />
-                <h3 className="font-bold text-white">Sentinel Firewall</h3>
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  Scans intent notes for prompt injection, rejects slippage &gt; 300 bps, and can trigger <code>pause()</code> in 1 block.
-                </p>
-              </div>
-              <div className="near-card p-6 rounded-2xl space-y-3">
-                <Database className="w-6 h-6 text-[#00EC97]" />
-                <h3 className="font-bold text-white">Matcher Conservation</h3>
-                <p className="text-xs text-neutral-400 leading-relaxed">
-                  Mathematically audits that input intent notional strictly equals output legs within 5 bps tolerance.
-                </p>
-              </div>
-            </div>
 
-            <div className="near-card p-7 rounded-3xl space-y-4">
-              <div className="flex items-center space-x-2 text-[#00EC97]">
-                <Fingerprint className="w-5 h-5" />
-                <h3 className="text-sm font-bold uppercase tracking-wider">Enforced Contract Invariants (22 Cargo Tests)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  {
+                    name: "Strategist",
+                    role: "NEAR AI Cloud (DeepSeek-V3.2)",
+                    desc: "Plans P2P dark-pool netting and 1Click residual routing inside an attested TEE.",
+                  },
+                  {
+                    name: "Sentinel",
+                    role: "Adversarial Firewall",
+                    desc: "Scans for prompt-injection, drain attempts, and slippage > 300 bps (vetoes if Risk > 60).",
+                  },
+                  {
+                    name: "Matcher",
+                    role: "Conservation Auditor",
+                    desc: "Mathematically verifies 100% asset conservation across every internal cross and residual leg.",
+                  },
+                ].map((ag) => (
+                  <div key={ag.name} className="near-card p-5 rounded-2xl space-y-2">
+                    <div className="text-xs font-mono text-[#00EC97]">{ag.role}</div>
+                    <h3 className="text-base font-bold text-white">{ag.name}</h3>
+                    <p className="text-xs text-neutral-400 leading-relaxed">{ag.desc}</p>
+                  </div>
+                ))}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-                <div className="p-4 rounded-xl bg-[#111111] border border-[#262626]">
-                  <div className="text-[#00EC97] font-bold">max_risk_score &lt;= 60</div>
-                  <div className="text-neutral-400 font-sans mt-1">Any attestation above 60 automatically marks the plan Rejected.</div>
+
+              <div className="near-card p-5 rounded-2xl flex items-start space-x-3">
+                <Database className="w-5 h-5 text-[#00EC97] shrink-0 mt-0.5" />
+                <div className="text-xs text-neutral-300 leading-relaxed">
+                  <strong className="text-white">Deterministic Rust Smart Contract (MamoruVault):</strong> Enforces on-chain
+                  allowed target chains, notional caps, and SHA-256 <code className="text-[#00EC97]">plan_hash</code>{" "}
+                  verification before invoking <code className="text-[#17D9D4]">v1.signer</code> MPC signatures.
                 </div>
-                <div className="p-4 rounded-xl bg-[#111111] border border-[#262626]">
-                  <div className="text-[#00EC97] font-bold">require_sentinel = true</div>
-                  <div className="text-neutral-400 font-sans mt-1">Matcher + Strategist cannot bypass Sentinel security sign-off.</div>
-                </div>
               </div>
             </div>
-          </section>
-        )}
+          </div>
+        </section>
 
-        {/* ================= USE CASES & SUBMIT TAB ================= */}
-        {activeTab === "submit" && (
-          <section className="max-w-7xl mx-auto px-6 py-14 space-y-12 animate-fadeInUp">
-            <div className="space-y-3 max-w-2xl">
-              <h2 className="text-3xl font-black text-white">Use Cases &amp; Hackathon Submission</h2>
-              <p className="text-sm text-neutral-400">
-                Submit MamoruX on{" "}
-                <a
-                  href="https://nearhackathon.com/#apply"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[#00EC97] hover:underline inline-flex items-center space-x-1"
-                >
-                  <span>nearhackathon.com/#apply</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-                .
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[
-                { tag: "01 / DAO TREASURIES", title: "MEV-Free Rebalancing", desc: "DAOs diversify governance tokens into stablecoins or L1s without getting sandwiched by public mempool bots." },
-                { tag: "02 / HEDGE FUNDS", title: "Confidential Alpha", desc: "Trading desks rotate across BTC, ETH, and SOL without revealing strategy intent to copy-traders." },
-                { tag: "03 / AI AGENTS", title: "Autonomous Clearing", desc: "AI agents settle cross-chain services through a single NEAR vault with deterministic security guardrails." },
-              ].map((u, i) => (
-                <div key={i} className="near-card p-6 rounded-2xl space-y-2.5">
-                  <div className="text-xs font-mono font-bold text-[#00EC97]">{u.tag}</div>
-                  <h3 className="text-base font-bold text-white">{u.title}</h3>
-                  <p className="text-xs text-neutral-400 leading-relaxed">{u.desc}</p>
+        {/* ================= 5. USE CASES & HACKATHON SUBMIT ================= */}
+        <section id="submit" className="max-w-7xl mx-auto px-6 py-16 border-t border-[#1C1C1C]">
+          <div className="near-card p-7 rounded-3xl space-y-6 border border-[#00EC97]/30">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center space-x-2 text-xs font-mono text-[#00EC97]">
+                  <Award className="w-4 h-4" />
+                  <span>NEAR HACKATHON SUBMISSION DETAILS</span>
                 </div>
-              ))}
+                <h2 className="text-2xl font-black text-white mt-1">Ready for Judging &amp; Payout</h2>
+              </div>
+              <a
+                href="https://nearhackathon.com/#apply"
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2.5 rounded-xl bg-[#00EC97] text-black text-xs font-bold hover:bg-[#17D9D4] transition flex items-center space-x-1.5"
+              >
+                <span>Open Hackathon Apply</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
             </div>
 
-            <div className="near-card p-8 rounded-3xl space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+              <div className="p-4 rounded-xl bg-[#111111] border border-[#262626] flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-white">Submission Checklist (nearhackathon.com/#apply)</h3>
-                  <p className="text-xs text-neutral-400 mt-1">
-                    Prizes are paid in NEAR directly to the NEAR Wallet Address you paste into the form.
-                  </p>
+                  <div className="text-neutral-500">Project Name</div>
+                  <div className="text-white font-bold mt-0.5">MamoruX</div>
                 </div>
-                <button
-                  onClick={() => setWalletOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-[#00EC97] text-black text-xs font-bold hover:bg-[#17D9D4] transition"
-                >
-                  Get / Verify NEAR Wallet Address
+                <button onClick={() => copyText("MamoruX", "sub-name")} className="text-[#00EC97]">
+                  {copiedKey === "sub-name" ? "Copied!" : "Copy"}
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-                <div className="p-4 rounded-xl bg-[#111111] border border-[#262626] flex items-center justify-between">
-                  <div>
-                    <div className="text-neutral-500">Project Name</div>
-                    <div className="text-white font-bold mt-0.5">MamoruX</div>
-                  </div>
-                  <button onClick={() => copyText("MamoruX", "sub-name")} className="text-[#00EC97]">
-                    {copiedKey === "sub-name" ? "Copied!" : "Copy"}
-                  </button>
+              <div className="p-4 rounded-xl bg-[#111111] border border-[#262626] flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-neutral-500">Your NEAR Wallet Address</div>
+                  <div className="text-[#00EC97] font-bold mt-0.5 truncate">{activeAccount}</div>
                 </div>
+                <button onClick={() => copyText(activeAccount, "sub-wallet")} className="text-[#00EC97] shrink-0">
+                  {copiedKey === "sub-wallet" ? "Copied!" : "Copy"}
+                </button>
+              </div>
 
-                <div className="p-4 rounded-xl bg-[#111111] border border-[#262626] flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-neutral-500">Your NEAR Wallet Address</div>
-                    <div className="text-[#00EC97] font-bold mt-0.5 truncate">
-                      {activeAccount || "Not connected yet — click button above"}
-                    </div>
-                  </div>
-                  {activeAccount && (
-                    <button onClick={() => copyText(activeAccount, "sub-wallet")} className="text-[#00EC97] shrink-0">
-                      {copiedKey === "sub-wallet" ? "Copied!" : "Copy"}
-                    </button>
-                  )}
+              <div className="p-4 rounded-xl bg-[#111111] border border-[#262626] flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-neutral-500">Repository Link</div>
+                  <div className="text-white mt-0.5 truncate">https://github.com/bakarezainab/MamoruX</div>
                 </div>
+                <button
+                  onClick={() => copyText("https://github.com/bakarezainab/MamoruX", "sub-repo")}
+                  className="text-[#00EC97] shrink-0"
+                >
+                  {copiedKey === "sub-repo" ? "Copied!" : "Copy"}
+                </button>
+              </div>
 
-                <div className="p-4 rounded-xl bg-[#111111] border border-[#262626] flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-neutral-500">Repository Link</div>
-                    <div className="text-white mt-0.5 truncate">https://github.com/bakarezainab/MamoruX</div>
-                  </div>
-                  <button
-                    onClick={() => copyText("https://github.com/bakarezainab/MamoruX", "sub-repo")}
-                    className="text-[#00EC97] shrink-0"
-                  >
-                    {copiedKey === "sub-repo" ? "Copied!" : "Copy"}
-                  </button>
-                </div>
-
-                <div className="p-4 rounded-xl bg-[#111111] border border-[#262626]">
-                  <div className="text-neutral-500">Selected Tracks (5)</div>
-                  <div className="text-white mt-0.5">
-                    Unstoppable DeFi, Privacy &amp; Private AI, AI Swarms, AI Security &amp; Defense, Agent Economy
-                  </div>
+              <div className="p-4 rounded-xl bg-[#111111] border border-[#262626]">
+                <div className="text-neutral-500">Selected Tracks (5)</div>
+                <div className="text-white mt-0.5">
+                  Unstoppable DeFi, Privacy &amp; Private AI, AI Swarms, AI Security &amp; Defense, Agent Economy
                 </div>
               </div>
             </div>
-          </section>
-        )}
+          </div>
+        </section>
       </main>
 
       {/* ================= NEAR WALLET MODAL ================= */}
@@ -1255,12 +1187,10 @@ export default function Home() {
           <div className="near-card w-full max-w-lg rounded-3xl p-6 space-y-5 border border-[#00EC97]/40 animate-fadeInUp">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[#00EC97] flex items-center justify-center text-black">
-                  <Wallet className="w-4 h-4" />
-                </div>
+                <MamoruLogo size={34} />
                 <div>
-                  <h3 className="text-sm font-bold text-white">NEAR Wallet Inspector &amp; Generator</h3>
-                  <p className="text-[11px] text-neutral-400">Verify your NEAR address or create a new one</p>
+                  <h3 className="text-sm font-bold text-white">NEAR Wallet &amp; MPC Inspector</h3>
+                  <p className="text-[11px] text-neutral-400">Connect idealz.near or inspect any NEAR account</p>
                 </div>
               </div>
               <button onClick={() => setWalletOpen(false)} className="text-neutral-400 hover:text-white">
@@ -1319,14 +1249,14 @@ export default function Home() {
 
             <div className="space-y-2">
               <label className="text-xs font-mono text-neutral-400">
-                Paste your NEAR Wallet Address (.near, .testnet, or 64-char hex)
+                Inspect NEAR Wallet Address (.near, .testnet, or 64-char hex)
               </label>
               <div className="flex space-x-2">
                 <input
                   type="text"
                   value={walletInput}
                   onChange={(e) => setWalletInput(e.target.value)}
-                  placeholder="yourname.near"
+                  placeholder="idealz.near"
                   className="flex-1 bg-[#111111] border border-[#262626] focus:border-[#00EC97] rounded-xl px-3.5 py-2.5 text-xs font-mono text-white outline-none"
                 />
                 <button
@@ -1400,7 +1330,7 @@ export default function Home() {
       )}
 
       <footer className="border-t border-[#262626] py-7 px-6 text-center text-xs text-neutral-500 font-mono">
-        <p>MamoruX • Confidential AI Dark-Pool &amp; Policy Firewall • Built on NEAR Protocol (near-sdk v5)</p>
+        <p>MamoruX &bull; Confidential AI Dark-Pool &amp; Policy Firewall &bull; Built on NEAR Protocol (near-sdk v5)</p>
       </footer>
     </div>
   );
