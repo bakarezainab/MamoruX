@@ -43,7 +43,10 @@ export async function POST(req: Request) {
     }
 
     const batch = [...darkPoolBook, intent];
-    const result = await runMamoruSwarm(batch);
+    const result = await runMamoruSwarm(batch, {
+      nearAiApiKey: body.nearAiApiKey ? String(body.nearAiApiKey) : undefined,
+      nearAiModel: body.nearAiModel ? String(body.nearAiModel) : undefined,
+    });
 
     return NextResponse.json({
       ...result,
@@ -64,7 +67,7 @@ export async function POST(req: Request) {
 export async function GET() {
   return NextResponse.json({
     service: "MamoruX Multi-Agent Swarm API",
-    teeModel: process.env.NEAR_AI_MODEL || "deepseek-ai/DeepSeek-V3.1",
+    teeModel: process.env.NEAR_AI_MODEL || "deepseek/deepseek-v3.2",
     nearAiConfigured: Boolean(process.env.NEAR_AI_API_KEY),
     pool: darkPoolBook,
     mpcSigner: {
