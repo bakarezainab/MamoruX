@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 900" fill="none" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="bg-core" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#00EC97" stop-opacity="0.14"/>
+      <stop offset="45%" stop-color="#17D9D4" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#0A0A0A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="shield-stroke" x1="520" y1="120" x2="920" y2="740" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00EC97" stop-opacity="0.45"/>
+      <stop offset="50%" stop-color="#17D9D4" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#00EC97" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="x-beam" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00EC97" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#17D9D4" stop-opacity="0.1"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1440" height="900" fill="#0A0A0A"/>
+  <circle cx="720" cy="420" r="520" fill="url(#bg-core)"/>
+
+  <!-- Subtle Perspective Grid -->
+  <g stroke="#00EC97" stroke-opacity="0.05" stroke-width="1">
+    <path d="M0 700 L1440 700 M0 760 L1440 760 M0 830 L1440 830"/>
+    <path d="M720 450 L100 900 M720 450 L400 900 M720 450 L720 900 M720 450 L1040 900 M720 450 L1340 900"/>
+  </g>
+
+  <!-- Rotating Guardian Radar Rings -->
+  <circle cx="720" cy="430" r="340" stroke="#00EC97" stroke-opacity="0.1" stroke-width="1.2" stroke-dasharray="12 16">
+    <animateTransform attributeName="transform" type="rotate" from="0 720 430" to="360 720 430" dur="45s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="720" cy="430" r="260" stroke="#17D9D4" stroke-opacity="0.14" stroke-width="1" stroke-dasharray="6 10">
+    <animateTransform attributeName="transform" type="rotate" from="360 720 430" to="0 720 430" dur="30s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- Giant Mamoru (Guardian) Shield Silhouette -->
+  <path
+    d="M720 130 L960 225 V430 C960 595 855 710 720 765 C585 710 480 595 480 430 V225 L720 130 Z"
+    fill="#00EC97"
+    fill-opacity="0.025"
+    stroke="url(#shield-stroke)"
+    stroke-width="2"
+  />
+  <path
+    d="M720 175 L915 252 V425 C915 562 828 660 720 708 C612 660 525 562 525 425 V252 L720 175 Z"
+    stroke="#17D9D4"
+    stroke-opacity="0.14"
+    stroke-width="1.2"
+    stroke-dasharray="8 8"
+  />
+
+  <!-- Cross-Chain "X" Liquidity Beams Converging Inside Shield -->
+  <path d="M120 140 L720 430 L1320 720" stroke="url(#x-beam)" stroke-width="1.8" stroke-dasharray="10 10">
+    <animate attributeName="stroke-dashoffset" from="40" to="0" dur="2.5s" repeatCount="indefinite"/>
+  </path>
+  <path d="M1320 140 L720 430 L120 720" stroke="url(#x-beam)" stroke-width="1.8" stroke-dasharray="10 10">
+    <animate attributeName="stroke-dashoffset" from="0" to="40" dur="2.5s" repeatCount="indefinite"/>
+  </path>
+
+  <!-- Deflected External MEV Attack Waves (Outside Shield) -->
+  <path d="M260 320 Q360 360 445 350" stroke="#EF4444" stroke-opacity="0.22" stroke-width="1.5" stroke-dasharray="4 6"/>
+  <path d="M1180 320 Q1080 360 995 350" stroke="#EF4444" stroke-opacity="0.22" stroke-width="1.5" stroke-dasharray="4 6"/>
+
+  <!-- Central TEE Pulse Node -->
+  <circle cx="720" cy="430" r="18" fill="#00EC97" fill-opacity="0.18">
+    <animate attributeName="r" values="16;28;16" dur="3.2s" repeatCount="indefinite"/>
+    <animate attributeName="opacity" values="0.35;0.1;0.35" dur="3.2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="720" cy="430" r="5" fill="#00EC97" fill-opacity="0.7"/>
+</svg>

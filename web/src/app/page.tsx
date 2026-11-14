@@ -147,6 +147,19 @@ export default function Home() {
   const [nearAiServerKey, setNearAiServerKey] = useState(false);
   const [teeAttestation, setTeeAttestation] = useState<string | null>(null);
   const [teeLoading, setTeeLoading] = useState(false);
+  const [themeColor, setThemeColor] = useState<"near" | "emerald" | "cyan" | "violet">("near");
+
+  const applyTheme = (t: "near" | "emerald" | "cyan" | "violet") => {
+    setThemeColor(t);
+    if (typeof document !== "undefined") {
+      if (t === "near") {
+        delete document.documentElement.dataset.theme;
+      } else {
+        document.documentElement.dataset.theme = t;
+      }
+      localStorage.setItem("mamorux-theme", t);
+    }
+  };
 
   const copyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -217,6 +230,8 @@ export default function Home() {
   };
 
   useEffect(() => {
+    const saved = localStorage.getItem("mamorux-theme") as "near" | "emerald" | "cyan" | "violet" | null;
+    if (saved) applyTheme(saved);
     loadPool();
     loadNearAi();
     inspectWallet("idealz.near", "mainnet");
@@ -338,9 +353,22 @@ export default function Home() {
     addr.length > 20 ? `${addr.slice(0, 8)}...${addr.slice(-6)}` : addr;
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white near-grid-bg flex flex-col">
+    <div className="min-h-screen bg-[#0A0A0A] text-white near-grid-bg flex flex-col relative overflow-x-hidden">
+      {/* Full-Bleed Animated MamoruX Background Image + Floating Orbs */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute inset-0 mamoru-bg-layer opacity-45" />
+        <div
+          className="absolute -top-24 -left-24 w-[460px] h-[460px] rounded-full blur-[120px] opacity-25 animate-orb"
+          style={{ background: "var(--accent)" }}
+        />
+        <div
+          className="absolute top-1/3 -right-28 w-[420px] h-[420px] rounded-full blur-[130px] opacity-20 animate-orb"
+          style={{ background: "var(--accent-2)", animationDelay: "3s" }}
+        />
+      </div>
+
       {/* Sticky Single-Page Navbar */}
-      <header className="border-b border-[#262626] bg-[#0A0A0A]/85 backdrop-blur-xl sticky top-0 z-40 px-4 md:px-8 py-3.5">
+      <header className="border-b border-[#262626] bg-[#0A0A0A]/80 backdrop-blur-xl sticky top-0 z-40 px-4 md:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <a href="#top" className="flex items-center space-x-3 group">
             <MamoruLogo size={42} className="group-hover:scale-105 transition-transform duration-300" />
@@ -375,6 +403,31 @@ export default function Home() {
           </nav>
 
           <div className="flex items-center space-x-2.5">
+            {/* Theme Color Switcher */}
+            <div
+              className="hidden md:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-[#141414] border border-[#262626]"
+              title="Switch Theme Color"
+            >
+              {(
+                [
+                  { id: "near", color: "#00EC97", label: "NEAR Mint" },
+                  { id: "emerald", color: "#10B981", label: "Guardian Emerald" },
+                  { id: "cyan", color: "#06B6D4", label: "Cyber Cyan" },
+                  { id: "violet", color: "#A855F7", label: "Obsidian Violet" },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => applyTheme(t.id)}
+                  title={t.label}
+                  className={`w-3.5 h-3.5 rounded-full transition-transform ${
+                    themeColor === t.id ? "scale-125 ring-2 ring-white/80" : "opacity-65 hover:opacity-100"
+                  }`}
+                  style={{ backgroundColor: t.color }}
+                />
+              ))}
+            </div>
+
             <button
               onClick={() => (connectedAccountId ? setWalletOpen(true) : openConnectModal())}
               className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl border text-xs font-mono transition-all ${
@@ -401,19 +454,22 @@ export default function Home() {
         </div>
       </header>
 
-      <main id="top" className="flex-1">
+      <main id="top" className="flex-1 relative z-10">
         {/* ================= 1. HERO SECTION ================= */}
         <section className="max-w-7xl mx-auto px-6 pt-12 pb-16">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             <div className="lg:col-span-7 space-y-6 animate-fadeInUp">
-              <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[#00EC97]/10 border border-[#00EC97]/30 text-[#00EC97] text-xs font-mono">
+              <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[#141414]/80 theme-border border theme-text text-xs font-mono">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>NEAR AI Cloud TEE &bull; NEAR Intents 1Click &bull; MPC Chain Signatures</span>
+                <span>Mamoru (守る) = Protect &bull; X = Cross-Chain Dark-Pool</span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.06] text-white">
                 Private Cross-Chain{" "}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00EC97] via-[#17D9D4] to-[#00EC97] animate-gradient">
+                <span
+                  className="text-transparent bg-clip-text animate-gradient"
+                  style={{ backgroundImage: "linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent))" }}
+                >
                   AI Dark-Pool
                 </span>{" "}
                 &amp; Policy Firewall.
@@ -421,14 +477,14 @@ export default function Home() {
 
               <p className="text-base sm:text-lg text-neutral-300 leading-relaxed max-w-2xl">
                 MamoruX seals institutional swap intents inside NEAR AI Cloud TEEs, nets opposing orders peer-to-peer to
-                eliminate MEV leakage, enforces deterministic <code className="text-[#00EC97]">MamoruVault</code> guardrails,
+                eliminate MEV leakage, enforces deterministic <code className="theme-text">MamoruVault</code> guardrails,
                 and settles residuals across Ethereum, Solana, Bitcoin, and NEAR.
               </p>
 
               <div className="flex flex-wrap items-center gap-3.5 pt-2">
                 <a
                   href="#live-app"
-                  className="px-6 py-3.5 rounded-xl bg-[#00EC97] hover:bg-[#17D9D4] text-black font-bold text-sm transition-all flex items-center space-x-2 shadow-xl shadow-[#00EC97]/20"
+                  className="px-6 py-3.5 rounded-xl theme-btn-primary font-bold text-sm transition-all flex items-center space-x-2"
                 >
                   <Zap className="w-4 h-4" />
                   <span>Try Live Dark-Pool</span>
