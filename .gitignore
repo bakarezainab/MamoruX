@@ -15,4 +15,9 @@ dist/
 *.pem
 
 .next/
+*.mp4
+*.webm
+*.tsbuildinfo
+next-env.d.ts
+pnpm-workspace.yaml
 

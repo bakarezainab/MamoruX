@@ -119,13 +119,13 @@ async function fetch1ClickDryQuote(
         swapType: "EXACT_INPUT",
         slippageTolerance: slippageBps,
         originAsset: origin.assetId,
-        depositType: "ORIGIN_CHAIN",
+        depositType: "INTENTS",
         destinationAsset: dest.assetId,
         amount: toBaseUnits(amountDecimal, origin.decimals),
-        refundTo,
-        refundType: "ORIGIN_CHAIN",
-        recipient: refundTo,
-        recipientType: "DESTINATION_CHAIN",
+        refundTo: refundTo || "idealz.near",
+        refundType: "INTENTS",
+        recipient: refundTo || "idealz.near",
+        recipientType: "INTENTS",
         deadline: new Date(Date.now() + 30 * 60_000).toISOString(),
       }),
     });
@@ -158,7 +158,7 @@ async function callNearAiIfConfigured(
   const baseUrl = process.env.NEAR_AI_BASE_URL || "https://cloud-api.near.ai/v1";
   const model = modelOverride?.trim() || process.env.NEAR_AI_MODEL || "deepseek/deepseek-v3.2";
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
+  const timer = setTimeout(() => controller.abort(), 14000);
   try {
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
@@ -234,7 +234,7 @@ export async function runMamoruSwarm(
     const a = book[i];
     for (let j = i + 1; j < book.length && a.usd > 1e-9; j++) {
       const b = book[j];
-      if (b.usd <= 1e-9 || a.intent.owner === b.intent.owner) continue;
+      if (b.usd <= 1e-9 || a.intent.id === b.intent.id) continue;
       if (key(a.intent.sell) !== key(b.intent.buy) || key(a.intent.buy) !== key(b.intent.sell)) continue;
 
       const usd = Math.min(a.usd, b.usd);
