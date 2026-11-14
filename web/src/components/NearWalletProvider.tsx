@@ -60,10 +60,9 @@ export function NearWalletProvider({ children }: { children: React.ReactNode }) 
           ],
         });
 
-        const contractId = network === "mainnet" ? "v1.signer" : "v1.signer-prod.testnet";
         const modal = setupModal(selector, {
-          contractId,
           theme: "dark",
+          description: "Connect your NEAR wallet (0 NEAR gas required for sign-in & NEP-413 signatures)",
         });
 
         if (!active) return;
